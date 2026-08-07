@@ -12,8 +12,8 @@
 </head>
 <body>
 <header class="topbar">
-  <div><p class="eyebrow">QUẢN LÝ CĂN TIN</p><h1>Căn tin AI <small>v2.3 Cloud</small></h1></div>
-  <div class="status" id="ai-status">Đang kiểm tra AI…</div>
+  <div><p class="eyebrow">QUẢN LÝ CĂN TIN</p><h1>Căn tin AI <small>v2.5 Cloud</small></h1></div>
+  <div class="topbar-tools"><label class="store-switch">Cửa hàng<select id="store-select"></select></label><button class="button small secondary" id="new-store" type="button">+ Cửa hàng</button><div class="status" id="ai-status">Đang kiểm tra AI…</div></div>
 </header>
 <nav class="tabs" aria-label="Điều hướng chính">
   <button class="tab active" data-page="dashboard">Tổng quan</button>
@@ -22,10 +22,11 @@
   <button class="tab" data-page="weekly">Kiểm kho tuần</button>
   <button class="tab" data-page="customers">Khách hàng & Nợ</button>
   <button class="tab" data-page="assistant">Trợ lý AI</button>
+  <button class="tab" data-page="data">Dữ liệu</button>
 </nav>
 <main>
   <section class="page active" id="page-dashboard">
-    <div class="section-heading"><div><p class="eyebrow">HÔM NAY & THÁNG NÀY</p><h2>Tổng quan hoạt động</h2></div><div class="header-actions"><a class="button secondary" href="/api/export/sales.csv">Xuất CSV</a><a class="button secondary" href="/api/export/backup.json">Sao lưu JSON</a></div></div>
+    <div class="section-heading"><div><p class="eyebrow">HÔM NAY & THÁNG NÀY</p><h2>Tổng quan hoạt động</h2></div><div class="header-actions"><button class="button secondary" id="go-data" type="button">Import / Export</button><a class="button secondary" href="/api/export/sales.csv">Xuất CSV</a></div></div>
     <div class="stats-grid six">
       <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Doanh thu hôm nay</span><strong id="stat-revenue">0 ₫</strong><small>Xem đơn hàng →</small></article>
       <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Lợi nhuận hôm nay</span><strong id="stat-profit">0 ₫</strong><small>Xem đơn hàng →</small></article>
@@ -114,16 +115,29 @@
       <label class="field span-2">Tên khách hàng<input name="name" required></label><label class="field">Đơn vị/nhóm<input name="group"></label><label class="field">Số điện thoại<input name="phone"></label>
       <label class="field">Nợ đầu kỳ<input name="openingDebt" type="number" min="0" value="0"></label><label class="field span-2">Ghi chú<input name="note"></label><button class="button" type="submit">Thêm khách hàng</button>
     </form></article>
-    <div class="toolbar"><input id="customer-search" placeholder="Tìm khách hàng…"><select id="customer-filter"><option value="all">Tất cả</option><option value="owing">Đang còn nợ</option><option value="paid">Đã hết nợ</option></select></div>
+    <div class="toolbar debt-toolbar"><input id="customer-search" placeholder="Tìm khách hàng…"><select id="customer-filter"><option value="all">Tất cả</option><option value="owing">Đang còn nợ</option><option value="paid">Đã hết nợ</option></select><label class="mini-field">Từ ngày<input id="debt-date-from" type="date"></label><label class="mini-field">Đến ngày<input id="debt-date-to" type="date"></label><button class="button small secondary" id="clear-debt-dates" type="button">Xóa lọc ngày</button></div>
     <div id="customers-list" class="cards-list empty">Chưa có khách hàng.</div>
   </section>
 
   <section class="page" id="page-assistant">
-    <div class="section-heading"><div><p class="eyebrow">TRỢ LÝ MIỄN PHÍ TÍCH HỢP</p><h2>Trợ lý quản lý căn tin</h2></div></div>
-    <article class="panel chat-panel"><div id="chat-messages" class="chat-messages"><div class="message assistant">Trợ lý hoạt động miễn phí không cần API key. Bạn có thể hỏi: “Doanh thu tuần này bao nhiêu?”, “Ai còn nợ nhiều nhất?” hoặc “Mặt hàng nào sắp hết?”.</div></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="Nhập câu hỏi về dữ liệu căn tin…"><button class="button" type="submit">Gửi</button></form></article>
+    <div class="section-heading"><div><p class="eyebrow">TRỢ LÝ AI + LỆNH KHO</p><h2>Trợ lý quản lý căn tin</h2></div></div>
+    <article class="panel upload-panel"><div class="panel-title"><div><h3>Tải tệp / hình ảnh để AI phân tích</h3><p class="hint compact">Hỗ trợ Excel, ZIP, JSON và ảnh. Ảnh được OCR ngay trên thiết bị, không tốn API.</p></div><button class="button secondary" id="assistant-upload-button" type="button">Chọn tệp</button></div><input id="assistant-file" type="file" accept=".xlsx,.xls,.json,.zip,image/*" hidden><div id="assistant-file-result" class="file-result hidden"></div></article>
+    <article class="panel chat-panel space-top"><div id="chat-messages" class="chat-messages"><div class="message assistant">Có thể hỏi dữ liệu hoặc ra lệnh kho bằng câu tự nhiên. Ví dụ: “Rockstar bán hết”, “nhập 2 thùng Rockstar”, “kiểm kho Pepsi còn 10”, “xuất 5 Aquafina”.</div></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="Nhập câu hỏi hoặc lệnh nhập/xuất/kiểm kho…"><button class="button" type="submit">Gửi</button></form></article>
+  </section>
+
+  <section class="page" id="page-data">
+    <div class="section-heading"><div><p class="eyebrow">SAO LƯU & CHUYỂN DỮ LIỆU</p><h2>Import / Export dữ liệu</h2></div></div>
+    <div class="two-column">
+      <article class="panel"><div class="panel-title"><h3>Xuất dữ liệu</h3></div><p class="hint">Tải dữ liệu cửa hàng hiện tại để lưu, chỉnh sửa hoặc chuyển máy.</p><div class="export-grid"><button class="button" id="export-json" type="button">Node JSON</button><button class="button" id="export-excel" type="button">Excel .xlsx</button><button class="button" id="export-zip" type="button">ZIP</button></div></article>
+      <article class="panel"><div class="panel-title"><h3>Nhập dữ liệu</h3></div><p class="hint">Hỗ trợ JSON, Excel và ZIP. Có thể thay toàn bộ dữ liệu cửa hàng hiện tại hoặc gộp vào dữ liệu đang có.</p><input id="data-import-file" type="file" accept=".xlsx,.xls,.json,.zip"><div class="form-row space-top"><select id="import-mode"><option value="replace">Thay dữ liệu cửa hàng hiện tại</option><option value="merge">Gộp dữ liệu</option></select><button class="button" id="import-data" type="button">Đọc & nhập tệp</button></div><div id="import-result" class="file-result hidden"></div></article>
+    </div>
+    <article class="panel space-top"><div class="panel-title"><div><h3>Quản lý cửa hàng</h3><p class="hint compact">Mỗi cửa hàng có sản phẩm, đơn hàng, công nợ và kiểm kho riêng.</p></div><button class="button" id="new-store-2" type="button">Tạo cửa hàng mới trắng</button></div><div id="stores-list" class="cards-list"></div></article>
   </section>
 </main>
 <div id="toast" class="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

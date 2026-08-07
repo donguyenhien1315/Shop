@@ -1,7 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const state = {
-  products: [], customers: [], debts: [], sales: [], cart: [],
+  products: [], customers: [], debts: [], sales: [], cart: [], stores: [], activeStoreId: "",
   weeklyTemplate: [], weeklyAudits: [], editingSaleId: "", editingSaleOriginal: null, editingAuditId: ""
 };
 
@@ -57,6 +57,7 @@ async function navigateTo(page) {
     if (page === "inventory") await loadProducts();
     if (page === "weekly") await loadWeekly();
     if (page === "customers") await loadCustomers();
+    if (page === "data") await loadStores();
   } catch (error) { toast(error.message, true); }
   window.scrollTo({ top:0, behavior:"smooth" });
 }
@@ -111,9 +112,9 @@ function renderQuickProducts() {
   const list = state.products.filter(p => p.active !== false && (!term || normalizeText(`${p.name} ${p.category}`).includes(term)) && (!category || p.category === category));
   $("#quick-product-count").textContent = list.length;
   $("#quick-products").innerHTML = list.length ? list.map(p => {
-    const available = availableStock(p.id);
-    const unavailable = p.trackStock !== false && available <= 0;
-    return `<button class="quick-product${unavailable ? " unavailable" : ""}" data-id="${p.id}" type="button" ${unavailable ? "disabled" : ""}><span>${escapeHtml(p.name)}</span><strong>${money(p.salePrice)}</strong><small>${p.trackStock === false ? "Không giới hạn" : `Còn ${number(available)} ${escapeHtml(p.unit)}`}</small></button>`;
+    const available = availableStock(p.id), selected = state.cart.find(x => x.id === p.id)?.quantity || 0;
+    const unavailable = p.trackStock !== false && available <= 0 && !selected;
+    return `<button class="quick-product${unavailable ? " unavailable" : ""}${selected ? " selected" : ""}" data-id="${p.id}" type="button" ${unavailable ? "disabled" : ""}>${selected ? `<span class="quick-selected-count" title="Số lượng đã chọn">${selected}</span><span class="quick-selected-remove" title="Xóa khỏi đơn">×</span>` : ""}<span>${escapeHtml(p.name)}</span><strong>${money(p.salePrice)}</strong><small>${p.trackStock === false ? "Không giới hạn" : `Còn ${number(available)} ${escapeHtml(p.unit)}`}</small></button>`;
   }).join("") : `<p class="hint">Không tìm thấy sản phẩm phù hợp.</p>`;
 }
 
@@ -132,6 +133,7 @@ function renderCart() {
   $("#cart-list").className = `list${state.cart.length ? "" : " empty"}`;
   $("#cart-list").innerHTML = state.cart.length ? state.cart.map(item => `<div class="cart-row" data-id="${item.id}"><div class="cart-name"><strong>${escapeHtml(item.name)}</strong><small>${money(item.salePrice)} / ${escapeHtml(item.unit)}</small></div><div class="cart-controls"><button class="qty-button cart-minus" type="button">−</button><input class="cart-quantity" type="number" min="1" step="1" value="${item.quantity}" aria-label="Số lượng ${escapeHtml(item.name)}"><button class="qty-button cart-plus" type="button">+</button><button class="icon-button remove-cart" type="button" aria-label="Xóa ${escapeHtml(item.name)}">×</button></div><strong class="cart-subtotal">${money(item.quantity * item.salePrice)}</strong></div>`).join("") : "Chưa có sản phẩm.";
   $("#cart-total").textContent = money(state.cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0));
+  if ($("#quick-products")) renderQuickProducts();
 }
 
 async function loadSales() {
@@ -200,15 +202,23 @@ async function loadCustomers() {
 
 function renderCustomers() {
   const term = normalizeText($("#customer-search").value), filter = $("#customer-filter").value;
-  const list = state.customers.filter(c => (!term || normalizeText(`${c.name} ${c.group} ${c.phone}`).includes(term)) && (filter === "all" || (filter === "owing" ? c.debtBalance > 0 : c.debtBalance <= 0)));
+  const from = $("#debt-date-from")?.value || "", to = $("#debt-date-to")?.value || "";
+  const inRange = debt => (!from || dateKey(debt.createdAt) >= from) && (!to || dateKey(debt.createdAt) <= to);
+  let list = state.customers.filter(c => (!term || normalizeText(`${c.name} ${c.group} ${c.phone}`).includes(term)) && (filter === "all" || (filter === "owing" ? c.debtBalance > 0 : c.debtBalance <= 0)));
+  if (from || to) list = list.filter(c => state.debts.some(d => d.customerId === c.id && inRange(d)));
   $("#customers-list").className = `cards-list${list.length ? "" : " empty"}`;
   $("#customers-list").innerHTML = list.length ? list.map(customer => {
-    const debts = state.debts.filter(d => d.customerId === customer.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const openDebts = debts.filter(d => d.balance > 0);
+    const allDebts = state.debts.filter(d => d.customerId === customer.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const debts = allDebts.filter(inRange), openDebts = allDebts.filter(d => d.balance > 0);
     const debtOptions = openDebts.map(d => `<option value="${d.id}">${dateOnly(d.createdAt)} · ${escapeHtml(d.note || "Khoản nợ")} · còn ${money(d.balance)}</option>`).join("");
-    const history = debts.length ? debts.map(debt => `<article class="debt-entry" data-debt-id="${debt.id}"><div class="debt-line"><div><strong>${money(debt.amount)}</strong><small>${dateOnly(debt.createdAt)} · ${escapeHtml(debt.note || "Không có ghi chú")}</small></div><div class="debt-status">${debt.balance ? `Còn ${money(debt.balance)}` : "Đã trả"}</div></div><div class="debt-edit-grid"><label class="field">Ngày<input class="edit-debt-date" type="date" value="${dateKey(debt.createdAt)}"></label><label class="field">Tổng khoản nợ<input class="edit-debt-amount" type="number" min="1" step="1000" value="${debt.amount}"></label><label class="field span-2">Món nợ/Ghi chú<input class="edit-debt-note" value="${escapeHtml(debt.note || "")}"></label></div>${debt.payments?.length ? `<p class="hint compact">Đã trả ${money(debt.paid)} qua ${debt.payments.length} lần.</p>` : ""}<div class="inline-actions"><button class="button small secondary save-debt" type="button">Lưu sửa đổi</button><button class="button small danger delete-debt" type="button">Xóa khoản nợ</button></div></article>`).join("") : "<p class='hint'>Chưa có khoản nợ.</p>";
-    return `<article class="customer-card" data-id="${customer.id}"><div class="customer-top"><div><h3>${escapeHtml(customer.name)}</h3><div class="customer-meta">${escapeHtml(customer.group || "Chưa có đơn vị")}${customer.phone ? ` · ${escapeHtml(customer.phone)}` : ""}</div></div><div class="debt-balance ${customer.debtBalance <= 0 ? "zero" : ""}">${money(customer.debtBalance)}</div></div>${customer.note ? `<p class="hint">${escapeHtml(customer.note)}</p>` : ""}<div class="debt-action-box"><h4>Thêm khoản nợ</h4><div class="debt-form-grid"><input class="new-debt-date" type="date" value="${todayKey()}" aria-label="Ngày ghi nợ"><input class="new-debt-amount" type="number" min="1000" step="1000" placeholder="Số tiền nợ"><input class="new-debt-note" placeholder="Món nợ"></div><button class="button small add-debt" type="button">Ghi nợ thủ công</button></div>${customer.debtBalance > 0 ? `<div class="debt-action-box pay-box"><h4>Ghi nhận trả nợ</h4><div class="debt-form-grid pay-grid"><input class="pay-amount" type="number" min="1000" step="1000" max="${customer.debtBalance}" placeholder="Số tiền trả"><select class="pay-debt-id" aria-label="Chọn khoản nợ"><option value="">Tự động trừ khoản cũ nhất</option>${debtOptions}</select><input class="pay-note" placeholder="Ghi chú trả nợ"></div><button class="button small secondary pay-customer" type="button">Ghi nhận trả nợ</button></div>` : ""}<details class="details debt-history"><summary>Lịch sử ${debts.length} khoản</summary>${history}</details></article>`;
-  }).join("") : "Không tìm thấy khách hàng.";
+    const filteredBalance = debts.reduce((sum,d)=>sum+(Number(d.balance)||0),0);
+    const history = debts.length ? debts.map(debt => {
+      const payments=(debt.payments||[]).map(pay=>`<div class="payment-entry" data-payment-id="${pay.id}"><label class="field">Ngày trả<input class="edit-payment-date" type="date" value="${dateKey(pay.createdAt)}"></label><label class="field">Số tiền<input class="edit-payment-amount" type="number" min="1" step="1000" value="${pay.amount}"></label><label class="field grow">Ghi chú<input class="edit-payment-note" value="${escapeHtml(pay.note||"")}"></label><button class="button small secondary save-payment" type="button">Lưu trả nợ</button><button class="button small danger delete-payment" type="button">×</button></div>`).join("");
+      return `<article class="debt-entry" data-debt-id="${debt.id}"><div class="debt-line"><div><strong>${money(debt.amount)}</strong><small>${dateOnly(debt.createdAt)} · ${escapeHtml(debt.note || "Không có ghi chú")}</small></div><div class="debt-status">${debt.balance ? `Còn ${money(debt.balance)}` : "Đã trả"}</div></div><div class="debt-edit-grid"><label class="field">Ngày<input class="edit-debt-date" type="date" value="${dateKey(debt.createdAt)}"></label><label class="field">Tổng khoản nợ<input class="edit-debt-amount" type="number" min="1" step="1000" value="${debt.amount}"></label><label class="field span-2">Món nợ/Ghi chú<input class="edit-debt-note" value="${escapeHtml(debt.note || "")}"></label></div>${debt.payments?.length ? `<details class="payment-history"><summary>Đã trả ${money(debt.paid)} qua ${debt.payments.length} lần — chỉnh chi tiết</summary>${payments}</details>` : ""}<div class="inline-actions"><button class="button small secondary save-debt" type="button">Lưu sửa đổi</button><button class="button small danger delete-debt" type="button">Xóa khoản nợ</button></div></article>`;
+    }).join("") : "<p class='hint'>Không có khoản nợ trong khoảng ngày đã chọn.</p>";
+    const balanceLabel=(from||to)?`Trong kỳ: ${money(filteredBalance)} · Tổng còn nợ: ${money(customer.debtBalance)}`:money(customer.debtBalance);
+    return `<article class="customer-card" data-id="${customer.id}"><div class="customer-top"><div><h3>${escapeHtml(customer.name)}</h3><div class="customer-meta">${escapeHtml(customer.group || "Chưa có đơn vị")}${customer.phone ? ` · ${escapeHtml(customer.phone)}` : ""}</div></div><div class="debt-balance ${customer.debtBalance <= 0 ? "zero" : ""}">${balanceLabel}</div></div>${customer.note ? `<p class="hint">${escapeHtml(customer.note)}</p>` : ""}<div class="debt-action-box"><h4>Thêm khoản nợ</h4><div class="debt-form-grid"><input class="new-debt-date" type="date" value="${todayKey()}" aria-label="Ngày ghi nợ"><input class="new-debt-amount" type="number" min="1000" step="1000" placeholder="Số tiền nợ"><input class="new-debt-note" placeholder="Món nợ"></div><button class="button small add-debt" type="button">Ghi nợ thủ công</button></div>${customer.debtBalance > 0 ? `<div class="debt-action-box pay-box"><h4>Ghi nhận trả nợ</h4><div class="debt-form-grid pay-grid"><input class="pay-amount" type="number" min="1000" step="1000" max="${customer.debtBalance}" placeholder="Số tiền trả"><select class="pay-debt-id" aria-label="Chọn khoản nợ"><option value="">Tự động trừ khoản cũ nhất</option>${debtOptions}</select><input class="pay-note" placeholder="Ghi chú trả nợ"></div><button class="button small secondary pay-customer" type="button">Ghi nhận trả nợ</button></div>` : ""}<details class="details debt-history" ${(from||to)?"open":""}><summary>Lịch sử ${debts.length}/${allDebts.length} khoản</summary>${history}</details></article>`;
+  }).join("") : "Không tìm thấy công nợ phù hợp.";
 }
 
 function fillEditProduct(product) {
@@ -313,8 +323,9 @@ $("#page-dashboard").addEventListener("keydown", event => {
 $("#sale-product-search").addEventListener("input", renderQuickProducts);
 $("#sale-category").addEventListener("change", renderQuickProducts);
 $("#quick-products").addEventListener("click", event => {
-  const button = event.target.closest(".quick-product");
-  if (button) addProductToCart(button.dataset.id);
+  const button = event.target.closest(".quick-product"); if (!button) return;
+  if (event.target.closest(".quick-selected-remove")) { state.cart = state.cart.filter(x => x.id !== button.dataset.id); return renderCart(); }
+  addProductToCart(button.dataset.id);
 });
 
 $("#cart-list").addEventListener("click", event => {
@@ -435,6 +446,9 @@ $("#customer-form").addEventListener("submit", async event => {
 });
 $("#customer-search").addEventListener("input", renderCustomers);
 $("#customer-filter").addEventListener("change", renderCustomers);
+$("#debt-date-from").addEventListener("change", renderCustomers);
+$("#debt-date-to").addEventListener("change", renderCustomers);
+$("#clear-debt-dates").addEventListener("click", () => { $("#debt-date-from").value=""; $("#debt-date-to").value=""; renderCustomers(); });
 $("#customers-list").addEventListener("click", async event => {
   const card = event.target.closest(".customer-card");
   if (!card) return;
@@ -452,6 +466,17 @@ $("#customers-list").addEventListener("click", async event => {
       await Promise.all([loadCustomers(), loadDashboard()]);
     }
     const debtEntry = event.target.closest(".debt-entry");
+    const paymentEntry = event.target.closest(".payment-entry");
+    if (debtEntry && paymentEntry && event.target.closest(".save-payment")) {
+      const payload={date:paymentEntry.querySelector(".edit-payment-date").value,amount:paymentEntry.querySelector(".edit-payment-amount").value,note:paymentEntry.querySelector(".edit-payment-note").value};
+      await api(`/api/debts/${debtEntry.dataset.debtId}/payments/${paymentEntry.dataset.paymentId}`,{method:"PATCH",body:JSON.stringify(payload)});
+      toast("Đã chỉnh chi tiết lần trả nợ."); await Promise.all([loadCustomers(),loadDashboard()]); return;
+    }
+    if (debtEntry && paymentEntry && event.target.closest(".delete-payment")) {
+      if(!confirm("Xóa lần thanh toán này? Số tiền sẽ được cộng lại vào còn nợ."))return;
+      await api(`/api/debts/${debtEntry.dataset.debtId}/payments/${paymentEntry.dataset.paymentId}`,{method:"DELETE"});
+      toast("Đã xóa lần trả nợ."); await Promise.all([loadCustomers(),loadDashboard()]); return;
+    }
     if (debtEntry && event.target.closest(".save-debt")) {
       const payload = { date:debtEntry.querySelector(".edit-debt-date").value, amount:debtEntry.querySelector(".edit-debt-amount").value, note:debtEntry.querySelector(".edit-debt-note").value };
       await api(`/api/debts/${debtEntry.dataset.debtId}`, { method:"PATCH", body:JSON.stringify(payload) });
@@ -509,11 +534,46 @@ $("#chat-form").addEventListener("submit", async event => {
   box.appendChild(loading);
   box.scrollTop = box.scrollHeight;
   try {
-    const result = await api("/api/ai/chat", { method:"POST", body:JSON.stringify({ message }) });
+    const result = await sendAssistantMessage(message);
     loading.textContent = result.answer;
   } catch (error) { loading.textContent = `Lỗi: ${error.message}`; }
   box.scrollTop = box.scrollHeight;
 });
+
+
+async function loadStores(){
+  const data=await api("/api/stores"); state.stores=data.stores||[]; state.activeStoreId=data.activeStoreId||"";
+  const select=$("#store-select"); if(select){select.innerHTML=state.stores.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");select.value=state.activeStoreId;}
+  const box=$("#stores-list"); if(box)box.innerHTML=state.stores.map(s=>`<article class="store-card ${s.id===state.activeStoreId?"active":""}" data-id="${s.id}"><div><strong>${escapeHtml(s.name)}</strong><small>${s.counts.products} mặt hàng · ${s.counts.sales} đơn · ${s.counts.customers} khách</small></div><div class="inline-actions">${s.id===state.activeStoreId?'<span class="badge">Đang dùng</span>':'<button class="button small secondary select-store" type="button">Mở</button>'}<button class="button small rename-store" type="button">Đổi tên</button>${state.stores.length>1?'<button class="button small danger delete-store" type="button">Xóa</button>':''}</div></article>`).join("");
+}
+async function switchStore(id){ if(!id||id===state.activeStoreId)return; await api("/api/stores/select",{method:"POST",body:JSON.stringify({id})}); state.cart=[];state.editingSaleId="";state.editingAuditId="";await loadStores();await initAppData();toast("Đã chuyển cửa hàng."); }
+async function createStore(){const name=prompt("Tên cửa hàng mới:","Cửa hàng mới");if(!name?.trim())return;await api("/api/stores",{method:"POST",body:JSON.stringify({name:name.trim()})});state.cart=[];await loadStores();await initAppData();toast(`Đã tạo ${name.trim()} với dữ liệu trắng.`);}
+function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+async function getBackup(){const r=await fetch("/api/export/backup.json",{cache:"no-store"});if(!r.ok)throw new Error("Không tải được dữ liệu.");return r.json();}
+function workbookFromBackup(data){
+  const wb=XLSX.utils.book_new(); const sheets={
+    San_pham:(data.products||[]).map(x=>({...x})),
+    Khach_hang:(data.customers||[]).map(x=>({...x})),
+    Cong_no:(data.debts||[]).map(x=>({...x,payments:JSON.stringify(x.payments||[])})),
+    Don_hang:(data.sales||[]).map(x=>({...x,items:JSON.stringify(x.items||[])})),
+    Kiem_kho:(data.weeklyAudits||[]).map(x=>({...x,lines:JSON.stringify(x.lines||[])}))
+  };
+  for(const [name,rows] of Object.entries(sheets))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),name.slice(0,31)); return wb;
+}
+function parseJsonCells(rows,keys){return rows.map(r=>{for(const k of keys)if(typeof r[k]==="string"&&r[k].trim().startsWith("[")){try{r[k]=JSON.parse(r[k]);}catch{}}return r;});}
+function backupFromWorkbook(wb){
+  const rows=name=>wb.Sheets[name]?XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:""}):[];
+  return {products:rows("San_pham"),customers:rows("Khach_hang"),debts:parseJsonCells(rows("Cong_no"),["payments"]),sales:parseJsonCells(rows("Don_hang"),["items"]),weeklyTemplate:[],weeklyAudits:parseJsonCells(rows("Kiem_kho"),["lines"]),stockAdjustments:[]};
+}
+async function readImportFile(file){
+  const name=file.name.toLowerCase();
+  if(name.endsWith(".json"))return JSON.parse(await file.text());
+  if(name.endsWith(".xlsx")||name.endsWith(".xls")){const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});return backupFromWorkbook(wb);}
+  if(name.endsWith(".zip")){const zip=await JSZip.loadAsync(await file.arrayBuffer());const json=Object.values(zip.files).find(f=>!f.dir&&/backup.*\.json$/i.test(f.name))||Object.values(zip.files).find(f=>!f.dir&&/\.json$/i.test(f.name));if(json)return JSON.parse(await json.async("text"));const xf=Object.values(zip.files).find(f=>!f.dir&&/\.xlsx?$/i.test(f.name));if(xf){const wb=XLSX.read(await xf.async("arraybuffer"),{type:"array"});return backupFromWorkbook(wb);}throw new Error("ZIP không có JSON/Excel để nhập.");}
+  throw new Error("Định dạng tệp chưa được hỗ trợ.");
+}
+async function importFile(file,mode="replace") {const data=await readImportFile(file);const result=await api("/api/import/backup",{method:"POST",body:JSON.stringify({data,mode})});await initAppData();await loadStores();return result;}
+async function sendAssistantMessage(message){const result=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({message})});if(result.mode==="action")await Promise.all([loadProducts(),loadDashboard(),loadSales()]);return result;}
 
 async function initAppData() {
   $("#sale-date").value = todayKey();
@@ -525,9 +585,22 @@ async function initAppData() {
 async function init() {
   try {
     await loadHealth();
+    await loadStores();
     await initAppData();
   } catch (error) { toast(error.message, true); }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => undefined);
 }
+
+
+$("#store-select").addEventListener("change",e=>switchStore(e.target.value));
+$("#new-store").addEventListener("click",createStore); $("#new-store-2").addEventListener("click",createStore);
+$("#go-data").addEventListener("click",()=>navigateTo("data"));
+$("#stores-list").addEventListener("click",async e=>{const card=e.target.closest(".store-card");if(!card)return;try{if(e.target.closest(".select-store"))return switchStore(card.dataset.id);if(e.target.closest(".rename-store")){const cur=state.stores.find(s=>s.id===card.dataset.id);const name=prompt("Tên cửa hàng:",cur?.name||"");if(name?.trim()){await api(`/api/stores/${card.dataset.id}`,{method:"PATCH",body:JSON.stringify({name:name.trim()})});await loadStores();}}if(e.target.closest(".delete-store")){if(!confirm("Xóa cửa hàng này và toàn bộ dữ liệu bên trong?"))return;await api(`/api/stores/${card.dataset.id}`,{method:"DELETE"});await loadStores();await initAppData();}}catch(err){toast(err.message,true);}});
+$("#export-json").addEventListener("click",async()=>{try{const data=await getBackup();downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),`cantin-${todayKey()}.json`);}catch(e){toast(e.message,true);}});
+$("#export-excel").addEventListener("click",async()=>{try{const data=await getBackup(),wb=workbookFromBackup(data);XLSX.writeFile(wb,`cantin-${todayKey()}.xlsx`);}catch(e){toast(e.message,true);}});
+$("#export-zip").addEventListener("click",async()=>{try{const data=await getBackup(),zip=new JSZip();zip.file(`cantin-backup-${todayKey()}.json`,JSON.stringify(data,null,2));const wb=workbookFromBackup(data),bytes=XLSX.write(wb,{bookType:"xlsx",type:"array"});zip.file(`cantin-${todayKey()}.xlsx`,bytes);const blob=await zip.generateAsync({type:"blob"});downloadBlob(blob,`cantin-${todayKey()}.zip`);}catch(e){toast(e.message,true);}});
+$("#import-data").addEventListener("click",async()=>{const file=$("#data-import-file").files[0];if(!file)return toast("Hãy chọn tệp cần nhập.",true);if($("#import-mode").value==="replace"&&!confirm("Thay toàn bộ dữ liệu cửa hàng hiện tại bằng tệp này?"))return;const box=$("#import-result");box.classList.remove("hidden");box.textContent="Đang đọc tệp…";try{const r=await importFile(file,$("#import-mode").value);box.textContent=`Đã nhập: ${r.counts.products} mặt hàng, ${r.counts.customers} khách, ${r.counts.debts} khoản nợ, ${r.counts.sales} đơn.`;toast("Nhập dữ liệu thành công.");}catch(e){box.textContent=`Lỗi: ${e.message}`;toast(e.message,true);}});
+$("#assistant-upload-button").addEventListener("click",()=>$("#assistant-file").click());
+$("#assistant-file").addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;const box=$("#assistant-file-result");box.classList.remove("hidden");try{if(file.type.startsWith("image/")){box.innerHTML="Đang OCR hình ảnh… Có thể mất 10–30 giây.";const r=await Tesseract.recognize(file,"vie+eng",{logger:m=>{if(m.status==="recognizing text")box.textContent=`Đang đọc ảnh ${Math.round((m.progress||0)*100)}%…`;}});const text=(r.data.text||"").trim();box.innerHTML=`<strong>Văn bản nhận được:</strong><textarea id="ocr-text">${escapeHtml(text)}</textarea><button class="button small" id="apply-ocr" type="button">AI phân tích & cập nhật kho</button>`;$("#apply-ocr").addEventListener("click",async()=>{const lines=$("#ocr-text").value.split(/\n+/).map(x=>x.trim()).filter(Boolean);let answers=[];for(const line of lines.slice(0,80)){const rr=await sendAssistantMessage(line);if(rr.mode==="action")answers.push(rr.answer);}box.insertAdjacentHTML("beforeend",`<p class="hint">${answers.length?answers.map(escapeHtml).join("<br>"):"AI chưa nhận ra lệnh kho rõ ràng. Hãy chỉnh văn bản thành dạng “Pepsi còn 10”, “nhập 2 thùng Rockstar”…"}</p>`);});}else{box.textContent="Đang phân tích tệp dữ liệu…";const r=await importFile(file,"merge");box.textContent=`AI đã đọc và gộp dữ liệu: ${r.counts.products} mặt hàng, ${r.counts.customers} khách, ${r.counts.sales} đơn.`;}}catch(err){box.textContent=`Lỗi: ${err.message}`;}});
 
 init();

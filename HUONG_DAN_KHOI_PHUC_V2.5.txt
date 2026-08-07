@@ -1,0 +1,18 @@
+CANTIN AI v2.5 RESTORE FULL
+
+1) Giải nén file ZIP.
+2) Vào GitHub repo Shop -> Add file -> Upload files.
+3) Upload TOÀN BỘ file/thư mục bên trong gói này để ghi đè bản cũ.
+4) Commit changes.
+5) Chờ Cloudflare Pages tự deploy 1-3 phút.
+6) Mở https://shop-56j.pages.dev và tải lại trang.
+
+Bản này:
+- Không cần PIN.
+- Tự nhận dữ liệu v2.3/v2.4 và nâng lên cấu trúc v2.5 nhiều cửa hàng.
+- Nếu dữ liệu cũ thiếu mảng, tự bổ sung mảng rỗng để tránh lỗi undefined.filter.
+- Tự đồng bộ khách hàng + công nợ chuẩn từ Cantin AI v2 / Sổ nợ.xlsm đúng 1 lần.
+- KHÔNG thay đổi products, tồn kho, sales, kiểm kho, stockAdjustments khi đồng bộ công nợ.
+- Khôi phục các tính năng v2.5: bán hàng +/-/xóa/sửa số lượng, tìm kiếm, sửa/xóa đơn; công nợ lọc ngày/sửa/xóa/trả theo khoản; thêm/xóa mặt hàng; sửa/xóa kiểm kho; nhiều cửa hàng; import/export Excel/ZIP/JSON; upload ảnh/tệp; trợ lý kho lệnh tự nhiên.
+
+Nếu đang thấy giao diện v2.3 Cloud và lỗi "Cannot read properties of undefined (reading 'filter')", chỉ cần upload toàn bộ gói này. Không chạy lại sync-debts cũ.

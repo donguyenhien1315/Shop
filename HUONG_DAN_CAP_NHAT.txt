@@ -1,0 +1,11 @@
+CANTIN AI v2.5 FULL FEATURES
+
+1. Giải nén file ZIP.
+2. GitHub > repo Shop > Add file > Upload files.
+3. Upload toàn bộ nội dung bên trong thư mục Cantin_AI_v2.5_FULL_FEATURES và Commit changes.
+4. Chờ Cloudflare Pages tự deploy 1-2 phút.
+5. Mở lại shop-56j.pages.dev và tải lại trang.
+
+Không cần tạo project Supabase mới. Không cần chạy lại SQL nếu bản NO LOGIN trước đó đang hoạt động.
+
+Lưu ý: chức năng OCR ảnh dùng Tesseract trong trình duyệt nên lần đầu có thể mất 10-30 giây. Import Excel/ZIP dùng thư viện chạy trên trình duyệt.

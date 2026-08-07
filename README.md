@@ -1,13 +1,20 @@
-# Cantin AI v2.3 — NO LOGIN
+# Cantin AI v2.4 — Mirror Cloudflare + Supabase
 
-Bản Cloudflare Pages + Supabase, mở thẳng vào ứng dụng, không cần mã PIN.
+Bản này giữ nguyên cấu trúc giao diện và dữ liệu mẫu của Cantin AI v2.1 tham chiếu, nhưng chạy trên Cloudflare Pages + Supabase Free và không có màn hình đăng nhập PIN.
 
-## Cài đặt
-1. Supabase > SQL Editor > New query.
-2. Chạy toàn bộ file `SETUP_SUPABASE_NO_LOGIN.sql` một lần.
-3. Upload/ghi đè toàn bộ nội dung thư mục này lên repo GitHub `Shop`.
-4. Cloudflare Pages sẽ tự deploy lại từ branch `main`.
-5. Mở lại `https://shop-56j.pages.dev`.
+## Thành phần giữ nguyên từ bản tham chiếu
+- Tổng quan: doanh thu/lợi nhuận ngày & tháng, công nợ, hàng sắp hết, kiểm kho gần nhất.
+- Bán hàng nhanh: tìm sản phẩm, chọn nhanh, chỉnh số lượng +/−/×, sửa/xóa đơn.
+- Mặt hàng: danh sách, thêm/sửa/xóa, giá bán, giá vốn, tồn kho, cảnh báo.
+- Kiểm kho tuần: tồn đầu + nhập - tồn cuối, doanh thu, giá vốn, lợi nhuận.
+- Khách hàng & Nợ: danh sách khách, khoản nợ, thanh toán, sửa/xóa.
+- Trợ lý AI nội bộ miễn phí.
+- Xuất CSV và sao lưu JSON.
 
-## Bảo mật
-Bản này cố ý không có màn hình đăng nhập. Bất kỳ ai biết URL đều có thể truy cập và thay đổi dữ liệu.
+## Deploy Cloudflare Pages
+- Framework preset: None
+- Build command: exit 0
+- Build output directory: public
+- Root directory: để trống
+
+Supabase phải chạy SETUP_SUPABASE_NO_LOGIN.sql một lần.
