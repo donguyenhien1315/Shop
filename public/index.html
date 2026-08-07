@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="Quản lý căn tin, kho, kiểm kho tuần, công nợ và trợ lý AI">
+  <title>Căn tin AI</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="login-screen" class="login-screen hidden">
+  <form id="login-form" class="login-card">
+    <img src="/icon.svg" alt="" class="login-icon">
+    <p class="eyebrow">CĂN TIN AI CLOUD</p>
+    <h2>Đăng nhập ứng dụng</h2>
+    <p class="hint">Nhập mã PIN đã đặt trong biến môi trường APP_PIN.</p>
+    <label class="field">Mã PIN<input id="login-pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <button class="button full" type="submit">Đăng nhập</button>
+    <div id="login-error" class="login-error"></div>
+  </form>
+</div>
+<header class="topbar">
+  <div><p class="eyebrow">QUẢN LÝ CĂN TIN</p><h1>Căn tin AI <small>v2.1 Standalone</small></h1></div>
+  <div class="status" id="ai-status">Đang kiểm tra AI…</div>
+</header>
+<nav class="tabs" aria-label="Điều hướng chính">
+  <button class="tab active" data-page="dashboard">Tổng quan</button>
+  <button class="tab" data-page="sale">Bán hàng</button>
+  <button class="tab" data-page="inventory">Mặt hàng</button>
+  <button class="tab" data-page="weekly">Kiểm kho tuần</button>
+  <button class="tab" data-page="customers">Khách hàng & Nợ</button>
+  <button class="tab" data-page="assistant">Trợ lý AI</button>
+</nav>
+<main>
+  <section class="page active" id="page-dashboard">
+    <div class="section-heading"><div><p class="eyebrow">HÔM NAY & THÁNG NÀY</p><h2>Tổng quan hoạt động</h2></div><div class="header-actions"><a class="button secondary" href="/api/export/sales.csv">Xuất CSV</a><a class="button secondary" href="/api/export/backup.json">Sao lưu JSON</a></div></div>
+    <div class="stats-grid six">
+      <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Doanh thu hôm nay</span><strong id="stat-revenue">0 ₫</strong><small>Xem đơn hàng →</small></article>
+      <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Lợi nhuận hôm nay</span><strong id="stat-profit">0 ₫</strong><small>Xem đơn hàng →</small></article>
+      <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Doanh thu tháng</span><strong id="stat-month-revenue">0 ₫</strong><small>Xem đơn hàng →</small></article>
+      <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Lợi nhuận tháng</span><strong id="stat-month-profit">0 ₫</strong><small>Xem đơn hàng →</small></article>
+      <article class="stat-card dashboard-link" data-target="customers" tabindex="0"><span>Số khách hàng</span><strong id="stat-customers">0</strong><small>Xem khách hàng →</small></article>
+      <article class="stat-card warning dashboard-link" data-target="customers" tabindex="0"><span>Tổng còn nợ</span><strong id="stat-debt">0 ₫</strong><small>Xem sổ nợ →</small></article>
+    </div>
+    <div class="two-column">
+      <article class="panel dashboard-link" data-target="inventory" tabindex="0"><div class="panel-title"><h3>Hàng sắp hết</h3><span id="low-stock-count" class="badge">0</span></div><div id="low-stock-list" class="list empty">Chưa có sản phẩm sắp hết.</div></article>
+      <article class="panel dashboard-link" data-target="weekly" tabindex="0"><div class="panel-title"><h3>Kiểm kho gần nhất</h3></div><div id="latest-audit" class="list empty">Chưa có lần kiểm kho.</div></article>
+    </div>
+    <article class="panel space-top dashboard-link" data-target="sale" tabindex="0"><div class="panel-title"><h3>Giao dịch gần đây</h3><span class="text-link">Xem tất cả →</span></div><div id="recent-sales" class="list empty">Chưa có giao dịch.</div></article>
+  </section>
+
+  <section class="page" id="page-sale">
+    <div class="section-heading"><div><p class="eyebrow" id="sale-mode-label">TẠO ĐƠN</p><h2 id="sale-heading">Bán hàng nhanh</h2></div><button class="button secondary hidden" id="cancel-edit-sale" type="button">Hủy chỉnh sửa</button></div>
+    <div class="two-column sale-layout">
+      <article class="panel">
+        <div class="panel-title"><h3>Chọn sản phẩm</h3><span class="badge" id="quick-product-count">0</span></div>
+        <div class="toolbar product-picker-toolbar"><input id="sale-product-search" type="search" placeholder="Tìm nhanh tên sản phẩm…" autocomplete="off"><select id="sale-category"><option value="">Tất cả nhóm</option></select></div>
+        <div id="quick-products" class="quick-products"></div>
+        <p class="hint">Chạm vào sản phẩm để thêm nhanh vào đơn. Có thể tìm theo tên hoặc nhóm hàng.</p>
+      </article>
+      <article class="panel">
+        <div class="panel-title"><h3>Đơn hiện tại</h3><strong id="cart-total">0 ₫</strong></div><div id="cart-list" class="list empty">Chưa có sản phẩm.</div>
+        <label class="field">Ngày bán<input id="sale-date" type="date"></label>
+        <label class="field">Thanh toán<select id="payment-method"><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option><option value="debt">Ghi nợ</option></select></label>
+        <label class="field hidden" id="customer-field">Khách hàng nợ<select id="sale-customer"></select></label>
+        <label class="field">Ghi chú<input id="sale-note" placeholder="Món nợ hoặc ghi chú thêm"></label>
+        <button class="button full" id="checkout">Hoàn tất đơn</button>
+      </article>
+    </div>
+    <article class="panel space-top">
+      <div class="panel-title"><div><h3>Danh sách đơn hàng</h3><p class="hint compact">Mở chi tiết để xem từng món, chỉnh sửa hoặc xóa đơn ghi nhầm.</p></div><span class="badge" id="sales-count">0</span></div>
+      <div class="toolbar"><input id="sale-history-search" type="search" placeholder="Tìm theo món, khách hàng hoặc ghi chú…"><select id="sale-history-filter"><option value="all">Tất cả thanh toán</option><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option><option value="debt">Ghi nợ</option><option value="inventory">Kiểm kho</option></select></div>
+      <div id="sales-history" class="order-list empty">Chưa có đơn hàng.</div>
+    </article>
+  </section>
+
+  <section class="page" id="page-inventory">
+    <div class="section-heading"><div><p class="eyebrow">DANH MỤC</p><h2>Chi tiết mặt hàng</h2></div><button class="button" id="show-add-product">Thêm mặt hàng</button></div>
+    <article class="panel hidden" id="add-product-panel">
+      <div class="panel-title"><h3>Thêm mặt hàng mới</h3></div>
+      <form id="product-form" class="detail-grid">
+        <label class="field span-2">Tên sản phẩm<input name="name" required></label><label class="field">Nhóm hàng<input name="category" value="Nước"></label><label class="field">Đơn vị<input name="unit" value="chai"></label>
+        <label class="field">Quy cách/thùng<input name="packSize" type="number" min="1" value="24"></label><label class="field">Giá nhập/thùng hoặc lô<input name="purchasePrice" type="number" min="0" value="0"></label>
+        <label class="field">Giá vốn/đơn vị<input name="costPrice" type="number" min="0" value="0"></label><label class="field">Giá bán<input name="salePrice" type="number" min="0" value="0"></label>
+        <label class="field">Tồn kho<input name="stock" type="number" min="0" value="0"></label><label class="field">Mức cảnh báo<input name="minStock" type="number" min="0" value="5"></label>
+        <label class="field">Cách tính doanh thu<select name="revenueMode"><option value="direct_sale">Theo đơn bán</option><option value="weekly_inventory">Theo kiểm kho tuần</option></select></label>
+        <label class="field span-2">Công thức/Nguồn<input name="source"></label><label class="field span-2">Ghi chú<input name="note"></label>
+        <label class="check"><input name="trackStock" type="checkbox" checked> Theo dõi tồn kho</label><button class="button" type="submit">Lưu mặt hàng</button>
+      </form>
+    </article>
+    <article class="panel table-wrap"><div class="toolbar"><input id="product-search" placeholder="Tìm mặt hàng…"><select id="product-category"><option value="">Tất cả nhóm</option></select></div>
+      <table class="products-table"><thead><tr><th>Mặt hàng</th><th>Nhóm</th><th>Giá bán</th><th>Tồn</th><th>Cách tính</th><th></th></tr></thead><tbody id="products-table"></tbody></table>
+    </article>
+    <article class="panel hidden space-top" id="edit-product-panel">
+      <div class="panel-title"><h3>Chỉnh sửa chi tiết mặt hàng</h3><button class="icon-button" id="close-edit-product" type="button">×</button></div>
+      <form id="edit-product-form" class="detail-grid">
+        <input type="hidden" name="id"><label class="field span-2">Tên sản phẩm<input name="name" required></label><label class="field">Nhóm hàng<input name="category"></label><label class="field">Đơn vị<input name="unit"></label>
+        <label class="field">Quy cách/thùng<input name="packSize" type="number" min="1"></label><label class="field">Giá nhập/thùng hoặc lô<input name="purchasePrice" type="number" min="0"></label>
+        <label class="field">Giá vốn/đơn vị<input name="costPrice" type="number" min="0"></label><label class="field">Giá bán<input name="salePrice" type="number" min="0"></label>
+        <label class="field">Tồn kho<input name="stock" type="number" min="0"></label><label class="field">Mức cảnh báo<input name="minStock" type="number" min="0"></label>
+        <label class="field">Cách tính doanh thu<select name="revenueMode"><option value="direct_sale">Theo đơn bán</option><option value="weekly_inventory">Theo kiểm kho tuần</option></select></label>
+        <label class="field span-2">Công thức/Nguồn<input name="source"></label><label class="field span-2">Ghi chú<input name="note"></label>
+        <label class="check"><input name="trackStock" type="checkbox"> Theo dõi tồn kho</label><label class="check"><input name="active" type="checkbox"> Đang sử dụng</label><div class="form-actions"><button class="button" type="submit">Lưu thay đổi</button><button class="button danger" id="delete-product" type="button">Xóa mặt hàng</button></div>
+      </form>
+    </article>
+  </section>
+
+  <section class="page" id="page-weekly">
+    <div class="section-heading"><div><p class="eyebrow">CUỐI TUẦN</p><h2>Kiểm kho và tự tính doanh thu</h2></div></div>
+    <article class="panel">
+      <div class="form-row"><label class="field">Từ ngày<input id="week-start" type="date"></label><label class="field">Đến ngày<input id="week-end" type="date"></label><label class="field grow">Ghi chú<input id="week-note" placeholder="Ví dụ: Kiểm kho tuần 1"></label></div>
+      <p class="hint">Công thức: Số bán = Tồn đầu + Nhập thêm − Tồn cuối. App tự tính doanh thu, giá vốn, lợi nhuận và cập nhật tồn kho.</p>
+      <div class="table-wrap"><table class="weekly-table"><thead><tr><th>Sản phẩm</th><th>Tồn đầu</th><th>Nhập thùng</th><th>Nhập lẻ</th><th>Tồn cuối</th><th>Dự kiến bán</th><th>Doanh thu</th></tr></thead><tbody id="weekly-table"></tbody></table></div>
+      <div class="summary-bar"><div><span>Số lượng bán</span><strong id="week-total-qty">0</strong></div><div><span>Doanh thu</span><strong id="week-total-revenue">0 ₫</strong></div><div><span>Lợi nhuận</span><strong id="week-total-profit">0 ₫</strong></div><button class="button secondary hidden" id="cancel-edit-weekly" type="button">Hủy sửa</button><button class="button" id="save-weekly">Chốt kiểm kho tuần</button></div>
+    </article>
+    <article class="panel space-top"><div class="panel-title"><h3>Lịch sử kiểm kho</h3></div><div id="weekly-history" class="list empty">Chưa có dữ liệu kiểm kho.</div></article>
+  </section>
+
+  <section class="page" id="page-customers">
+    <div class="section-heading"><div><p class="eyebrow">SỔ NỢ EXCEL</p><h2>Khách hàng và công nợ</h2></div><button class="button" id="show-add-customer">Thêm khách hàng</button></div>
+    <article class="panel hidden" id="add-customer-panel"><form id="customer-form" class="detail-grid">
+      <label class="field span-2">Tên khách hàng<input name="name" required></label><label class="field">Đơn vị/nhóm<input name="group"></label><label class="field">Số điện thoại<input name="phone"></label>
+      <label class="field">Nợ đầu kỳ<input name="openingDebt" type="number" min="0" value="0"></label><label class="field span-2">Ghi chú<input name="note"></label><button class="button" type="submit">Thêm khách hàng</button>
+    </form></article>
+    <div class="toolbar"><input id="customer-search" placeholder="Tìm khách hàng…"><select id="customer-filter"><option value="all">Tất cả</option><option value="owing">Đang còn nợ</option><option value="paid">Đã hết nợ</option></select></div>
+    <div id="customers-list" class="cards-list empty">Chưa có khách hàng.</div>
+  </section>
+
+  <section class="page" id="page-assistant">
+    <div class="section-heading"><div><p class="eyebrow">TRỢ LÝ MIỄN PHÍ TÍCH HỢP</p><h2>Trợ lý quản lý căn tin</h2></div></div>
+    <article class="panel chat-panel"><div id="chat-messages" class="chat-messages"><div class="message assistant">Trợ lý hoạt động miễn phí không cần API key. Bạn có thể hỏi: “Doanh thu tuần này bao nhiêu?”, “Ai còn nợ nhiều nhất?” hoặc “Mặt hàng nào sắp hết?”.</div></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="Nhập câu hỏi về dữ liệu căn tin…"><button class="button" type="submit">Gửi</button></form></article>
+  </section>
+</main>
+<div id="toast" class="toast" role="status"></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
