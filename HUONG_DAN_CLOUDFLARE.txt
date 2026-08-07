@@ -1,0 +1,10 @@
+CANTIN AI - TRIỂN KHAI MIỄN PHÍ
+
+1. Upload toàn bộ thư mục dự án lên GitHub.
+2. Vào dash.cloudflare.com > Workers & Pages > Create > Pages > Connect to Git.
+3. Chọn repo.
+4. Framework preset: None.
+5. Build command: để trống.
+6. Build output directory: public.
+7. Deploy.
+8. Mở URL *.pages.dev và đăng nhập bằng PIN đã tạo trong Supabase.
