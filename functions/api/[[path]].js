@@ -569,19 +569,13 @@ export async function onRequest(context){
   const request=context.request; const url=new URL(request.url); const pathname=url.pathname;
   try{
     if(pathname==="/api/health"){
-      const pin=request.headers.get("x-cantin-pin")||""; const authenticated=await validatePin(pin);
-      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:true,authenticated,version:"2.1-cloudflare"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"2.3-no-login"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     }
-    if(pathname==="/api/auth/login"&&request.method==="POST"){
-      const body=await request.json().catch(()=>({})); const ok=await validatePin(String(body.pin||"").trim());
-      return new Response(JSON.stringify(ok?{ok:true}:{error:"Mã PIN không đúng."}),{status:ok?200:401,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
-    }
+    if(pathname==="/api/auth/login"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     if(pathname==="/api/auth/logout"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8"}});
-    const pin=request.headers.get("x-cantin-pin")||""; const authenticated=await validatePin(pin);
-    if(!authenticated) return new Response(JSON.stringify({error:"Bạn cần đăng nhập để sử dụng ứng dụng."}),{status:401,headers:{"Content-Type":"application/json; charset=utf-8"}});
-    const readStore=async()=>{ let data=await rpc("cantin_read_store",{p_pin:pin}); if(!data){ data=structuredClone(DEFAULT_STORE); await rpc("cantin_write_store",{p_pin:pin,p_data:data}); } return data; };
-    const updateStore=async(mutator)=>{ const data=await readStore(); const result=await mutator(data); await rpc("cantin_write_store",{p_pin:pin,p_data:data}); return result; };
-    const req=makeReq(request,authenticated), res=makeRes();
+    const readStore=async()=>{ let data=await rpc("cantin_read_store_public",{}); if(!data){ data=structuredClone(DEFAULT_STORE); await rpc("cantin_write_store_public",{p_data:data}); } return data; };
+    const updateStore=async(mutator)=>{ const data=await readStore(); const result=await mutator(data); await rpc("cantin_write_store_public",{p_data:data}); return result; };
+    const req=makeReq(request,true), res=makeRes();
     await handleApi(req,res,url,readStore,updateStore);
     return new Response(res.body,{status:res.status,headers:res.headers});
   }catch(error){

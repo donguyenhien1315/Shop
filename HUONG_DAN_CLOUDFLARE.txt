@@ -1,10 +1,11 @@
-CANTIN AI - TRIỂN KHAI MIỄN PHÍ
+CANTIN AI v2.3 NO LOGIN
 
-1. Upload toàn bộ thư mục dự án lên GitHub.
-2. Vào dash.cloudflare.com > Workers & Pages > Create > Pages > Connect to Git.
-3. Chọn repo.
-4. Framework preset: None.
-5. Build command: để trống.
-6. Build output directory: public.
-7. Deploy.
-8. Mở URL *.pages.dev và đăng nhập bằng PIN đã tạo trong Supabase.
+1) Supabase > SQL Editor > New query
+2) Mở file SETUP_SUPABASE_NO_LOGIN.sql, copy toàn bộ > Run
+3) GitHub repo Shop > Add file > Upload files
+4) Upload ghi đè toàn bộ file/thư mục của bản v2.3
+5) Commit changes
+6) Chờ Cloudflare Pages tự deploy khoảng 1-2 phút
+7) Mở https://shop-56j.pages.dev
+
+Không cần nhập PIN.

@@ -16,15 +16,10 @@ const todayKey = () => dateKey(new Date().toISOString());
 const paymentLabel = value => ({ cash:"Tiền mặt", transfer:"Chuyển khoản", debt:"Ghi nợ", inventory:"Kiểm kho" })[value] || value;
 
 async function api(url, options = {}) {
-  const savedPin = localStorage.getItem("cantin_pin") || "";
-  const headers = { "Content-Type":"application/json", ...(savedPin ? { "x-cantin-pin": savedPin } : {}), ...(options.headers || {}) };
+  const headers = { "Content-Type":"application/json", ...(options.headers || {}) };
   const response = await fetch(url, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Có lỗi xảy ra.");
-  if (url === "/api/auth/login") {
-    try { const body = JSON.parse(options.body || "{}"); if (body.pin) localStorage.setItem("cantin_pin", String(body.pin)); } catch {}
-  }
-  if (url === "/api/auth/logout") localStorage.removeItem("cantin_pin");
   return data;
 }
 
@@ -41,9 +36,8 @@ async function loadHealth() {
     const data = await api("/api/health");
     const aiLabel = data.aiMode === "hybrid" ? "AI mở rộng đã kết nối" : "Trợ lý miễn phí sẵn sàng";
     const storageLabel = data.storageMode === "postgres" ? " · Đã đồng bộ Cloud" : " · Lưu trong dự án";
-    $("#ai-status").textContent = data.authRequired && !data.authenticated ? "Cần đăng nhập" : `${aiLabel}${storageLabel}`;
-    $("#ai-status").classList.toggle("offline", data.authRequired && !data.authenticated);
-    $("#login-screen").classList.toggle("hidden", !(data.authRequired && !data.authenticated));
+    $("#ai-status").textContent = `${aiLabel}${storageLabel}`;
+    $("#ai-status").classList.remove("offline");
     return data;
   } catch {
     $("#ai-status").textContent = "Mất kết nối app";
@@ -521,18 +515,6 @@ $("#chat-form").addEventListener("submit", async event => {
   box.scrollTop = box.scrollHeight;
 });
 
-$("#login-form").addEventListener("submit", async event => {
-  event.preventDefault();
-  const pin = $("#login-pin").value.trim(), errorBox = $("#login-error");
-  errorBox.textContent = "";
-  try {
-    await api("/api/auth/login", { method:"POST", body:JSON.stringify({ pin }) });
-    $("#login-screen").classList.add("hidden");
-    $("#login-pin").value = "";
-    await initAppData();
-  } catch (error) { errorBox.textContent = error.message; }
-});
-
 async function initAppData() {
   $("#sale-date").value = todayKey();
   await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales()]);
@@ -542,8 +524,8 @@ async function initAppData() {
 
 async function init() {
   try {
-    const health = await loadHealth();
-    if (!(health.authRequired && !health.authenticated)) await initAppData();
+    await loadHealth();
+    await initAppData();
   } catch (error) { toast(error.message, true); }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => undefined);
 }
