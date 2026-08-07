@@ -1,0 +1,19 @@
+CANTIN AI - SYNC DEBTS V2
+
+Upload file:
+functions/api/sync-debts-v2.js
+
+vào repo GitHub:
+donguyenhien1315/Shop
+
+Sau khi Cloudflare deploy xong, mở:
+https://shop-56j.pages.dev/api/sync-debts-v2?confirm=sync-cantin-v2
+
+Kết quả đúng:
+ok: true
+customers: 36
+debts: 63
+totalDebt: 4908000
+
+Endpoint này chỉ thay customers + debts.
+Không thay sản phẩm, bán hàng, tồn kho, kiểm kho.
