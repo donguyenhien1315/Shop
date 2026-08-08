@@ -22,11 +22,11 @@
   <button class="tab" data-page="weekly">Kiểm kho tuần</button>
   <button class="tab" data-page="customers">Khách hàng & Nợ</button>
   <button class="tab" data-page="assistant">Trợ lý AI</button>
-  <button class="tab" data-page="data">Dữ liệu</button>
+  <button class="tab" data-page="activity">Nhật ký AI</button><button class="tab" data-page="data">Dữ liệu</button>
 </nav>
 <main>
   <section class="page active" id="page-dashboard">
-    <div class="section-heading"><div><p class="eyebrow">HÔM NAY & THÁNG NÀY</p><h2>Tổng quan hoạt động</h2></div><div class="header-actions"><button class="button secondary" id="go-data" type="button">Import / Export</button><a class="button secondary" href="/api/export/sales.csv">Xuất CSV</a></div></div>
+    <div class="section-heading"><div><p class="eyebrow">HÔM NAY & THÁNG NÀY</p><h2>Tổng quan hoạt động</h2></div><div class="header-actions"><button class="button secondary" id="undo-last" type="button">↶ Hoàn tác</button><button class="button secondary" id="go-data" type="button">Import / Export</button><a class="button secondary" href="/api/export/sales.csv">Xuất CSV</a></div></div>
     <div class="stats-grid six">
       <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Doanh thu hôm nay</span><strong id="stat-revenue">0 ₫</strong><small>Xem đơn hàng →</small></article>
       <article class="stat-card dashboard-link" data-target="sale" tabindex="0"><span>Lợi nhuận hôm nay</span><strong id="stat-profit">0 ₫</strong><small>Xem đơn hàng →</small></article>
@@ -39,6 +39,8 @@
       <article class="panel dashboard-link" data-target="inventory" tabindex="0"><div class="panel-title"><h3>Hàng sắp hết</h3><span id="low-stock-count" class="badge">0</span></div><div id="low-stock-list" class="list empty">Chưa có sản phẩm sắp hết.</div></article>
       <article class="panel dashboard-link" data-target="weekly" tabindex="0"><div class="panel-title"><h3>Kiểm kho gần nhất</h3></div><div id="latest-audit" class="list empty">Chưa có lần kiểm kho.</div></article>
     </div>
+
+    <article class="panel space-top smart-insights"><div class="panel-title"><div><h3>AI đề xuất hôm nay</h3><p class="hint compact">Cảnh báo từ dữ liệu thực tế của cửa hàng.</p></div><button class="button small secondary" id="refresh-insights" type="button">Làm mới</button></div><div id="smart-insights-list" class="list empty">Đang phân tích…</div></article>
     <article class="panel space-top dashboard-link" data-target="sale" tabindex="0"><div class="panel-title"><h3>Giao dịch gần đây</h3><span class="text-link">Xem tất cả →</span></div><div id="recent-sales" class="list empty">Chưa có giao dịch.</div></article>
   </section>
 
@@ -137,7 +139,18 @@
   <section class="page" id="page-assistant">
     <div class="section-heading"><div><p class="eyebrow">TRỢ LÝ AI + LỆNH KHO</p><h2>Trợ lý quản lý căn tin</h2></div></div>
     <article class="panel upload-panel"><div class="panel-title"><div><h3>Tải tệp / hình ảnh để AI phân tích</h3><p class="hint compact">Hỗ trợ Excel, ZIP, JSON và ảnh. Ảnh được OCR ngay trên thiết bị, không tốn API.</p></div><button class="button secondary" id="assistant-upload-button" type="button">Chọn tệp</button></div><input id="assistant-file" type="file" accept=".xlsx,.xls,.json,.zip,image/*" hidden><div id="assistant-file-result" class="file-result hidden"></div></article>
-    <article class="panel chat-panel space-top"><div id="chat-messages" class="chat-messages"><div class="message assistant">Có thể hỏi dữ liệu hoặc ra lệnh kho bằng câu tự nhiên. Ví dụ: “Rockstar bán hết”, “nhập 2 thùng Rockstar”, “kiểm kho Pepsi còn 10”, “xuất 5 Aquafina”.</div></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="Nhập câu hỏi hoặc lệnh nhập/xuất/kiểm kho…"><button class="button" type="submit">Gửi</button></form></article>
+    <article class="panel chat-panel space-top"><div id="chat-messages" class="chat-messages"><div class="message assistant">Có thể hỏi dữ liệu hoặc ra lệnh bán hàng/công nợ/nhập kho/kiểm kho bằng câu tự nhiên. Mọi lệnh thay đổi dữ liệu sẽ được xem trước trước khi xác nhận. Lệnh làm thay đổi dữ liệu sẽ được xem trước và yêu cầu xác nhận. Ví dụ: “Rockstar bán hết”, “nhập 2 thùng Rockstar”, “kiểm kho Pepsi còn 10”, “xuất 5 Aquafina”.</div></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="Nhập câu hỏi hoặc lệnh nhập/xuất/kiểm kho…"><button class="button" type="submit">Gửi</button></form></article>
+  </section>
+
+
+  <section class="page" id="page-activity">
+    <div class="section-heading"><div><p class="eyebrow">AI COMMAND CENTER</p><h2>Nhật ký, Alias & Khôi phục</h2></div></div>
+    <article class="panel"><div class="panel-title"><div><h3>Tên gọi nhanh AI</h3><p class="hint compact">Dạy AI các tên gọi như “rs” = Rockstar.</p></div></div>
+      <div class="detail-grid"><label class="field">Tên gọi<input id="alias-name" placeholder="VD: rs"></label><label class="field span-2">Sản phẩm<select id="alias-product"></select></label><button class="button" id="save-alias" type="button">Lưu tên gọi</button></div>
+      <div id="alias-list" class="list empty">Chưa có alias.</div>
+    </article>
+    <article class="panel space-top"><div class="panel-title"><div><h3>Nhật ký giao dịch</h3><p class="hint compact">Các thao tác AI và nghiệp vụ gần đây.</p></div><button class="button small secondary" id="reload-transactions">Làm mới</button></div><div id="transactions-list" class="list empty">Chưa có giao dịch.</div></article>
+    <article class="panel space-top"><div class="panel-title"><div><h3>Backup phiên bản</h3><p class="hint compact">Tạo snapshot trước khi import hoặc chỉnh sửa lớn.</p></div><button class="button small" id="create-snapshot">Tạo snapshot</button></div><div id="snapshots-list" class="list empty">Chưa có snapshot.</div></article>
   </section>
 
   <section class="page" id="page-data">

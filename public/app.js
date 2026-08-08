@@ -366,7 +366,7 @@ $("#checkout").addEventListener("click", async () => {
     await api(editing ? `/api/sales/${state.editingSaleId}` : "/api/sales", { method:editing ? "PATCH" : "POST", body:JSON.stringify(payload) });
     resetSaleForm();
     toast(editing ? "Đã cập nhật đơn hàng." : "Đã lưu đơn và cập nhật kho.");
-    await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
+    await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin(), loadSmartInsights()]);
   } catch (error) { toast(error.message, true); }
 });
 
@@ -382,7 +382,7 @@ $("#sales-history").addEventListener("click", async event => {
       await api(`/api/sales/${card.dataset.id}`, { method:"DELETE" });
       if (state.editingSaleId === card.dataset.id) resetSaleForm();
       toast("Đã xóa đơn và hoàn lại tồn kho.");
-      await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
+      await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin(), loadSmartInsights()]);
     } catch (error) { toast(error.message, true); }
   }
 });
@@ -527,22 +527,14 @@ $("#weekly-history").addEventListener("click", async event => {
 });
 
 $("#chat-form").addEventListener("submit", async event => {
-  event.preventDefault();
-  const input = $("#chat-message"), message = input.value.trim();
-  if (!message) return;
-  const box = $("#chat-messages");
-  box.insertAdjacentHTML("beforeend", `<div class="message user">${escapeHtml(message)}</div>`);
-  input.value = "";
-  const loading = document.createElement("div");
-  loading.className = "message assistant";
-  loading.textContent = "Đang phân tích dữ liệu…";
-  box.appendChild(loading);
-  box.scrollTop = box.scrollHeight;
-  try {
-    const result = await sendAssistantMessage(message);
-    loading.textContent = result.answer;
-  } catch (error) { loading.textContent = `Lỗi: ${error.message}`; }
-  box.scrollTop = box.scrollHeight;
+  event.preventDefault(); const input=$("#chat-message"), message=input.value.trim(); if(!message)return;
+  const box=$("#chat-messages");box.insertAdjacentHTML("beforeend",`<div class="message user">${escapeHtml(message)}</div>`);input.value="";
+  const loading=document.createElement("div");loading.className="message assistant";loading.textContent="Đang phân tích dữ liệu…";box.appendChild(loading);box.scrollTop=box.scrollHeight;
+  try{const result=await sendAssistantMessage(message);if(result.mode==="preview"){
+    loading.innerHTML=`<strong>Xem trước:</strong><div>${escapeHtml(result.answer)}</div><div class="ai-confirm-actions"><button class="button small ai-confirm" type="button">Xác nhận</button><button class="button small secondary ai-cancel" type="button">Hủy</button></div>`;
+    loading.querySelector(".ai-confirm").addEventListener("click",async()=>{try{loading.querySelector(".ai-confirm-actions").innerHTML="Đang thực hiện…";const done=await api("/api/ai/execute",{method:"POST",body:JSON.stringify({message})});loading.innerHTML=`<strong>Đã thực hiện:</strong> ${escapeHtml(done.answer)}`;await Promise.all([loadProducts(),loadDashboard(),loadSales(),loadWeekly(),loadSmartInsights()]);}catch(e){loading.textContent=`Lỗi: ${e.message}`;}});
+    loading.querySelector(".ai-cancel").addEventListener("click",()=>{loading.innerHTML="<em>Đã hủy, không thay đổi dữ liệu.</em>";});
+  }else loading.textContent=result.answer;}catch(error){loading.textContent=`Lỗi: ${error.message}`;}box.scrollTop=box.scrollHeight;
 });
 
 
@@ -578,20 +570,13 @@ async function readImportFile(file){
   throw new Error("Định dạng tệp chưa được hỗ trợ.");
 }
 async function importFile(file,mode="replace") {const data=await readImportFile(file);const result=await api("/api/import/backup",{method:"POST",body:JSON.stringify({data,mode})});await initAppData();await loadStores();return result;}
-async function sendAssistantMessage(message){const result=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({message})});if(result.mode==="action")await Promise.all([loadProducts(),loadDashboard(),loadSales()]);return result;}
-
-async function initAppData() {
-  $("#sale-date").value = todayKey();
-  await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
-  renderCart();
-  setDefaultWeek();
+async function loadSmartInsights(){
+  const box=$("#smart-insights-list"); if(!box)return;
+  try{const r=await api("/api/insights");const items=r.items||[];box.className=`list${items.length?"":" empty"}`;box.innerHTML=items.length?items.map(x=>`<div class="insight-row ${escapeHtml(x.level||"info")}"><div><strong>${escapeHtml(x.title)}</strong><small>${escapeHtml(x.detail||"")}</small></div>${x.target?`<button class="button small secondary insight-go" data-target="${escapeHtml(x.target)}">Mở</button>`:""}</div>`).join(""):"Không có cảnh báo đáng chú ý.";}catch(e){box.textContent="Không tải được cảnh báo.";}
 }
+async function undoLastAction(){if(!confirm("Hoàn tác thay đổi dữ liệu gần nhất?"))return;try{const r=await api("/api/undo",{method:"POST"});toast(r.message||"Đã hoàn tác.");await initAppData();await loadSmartInsights();}catch(e){toast(e.message,true);}}
 
-
-function localDateTimeValue(iso=new Date().toISOString()){
-  const d=new Date(iso); const pad=n=>String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+async function sendAssistantMessage(message){const result=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({message})});if(result.mode==="preview"){renderAiPreview(result.preview,message);return result;}if(result.mode==="action")await Promise.all([loadProducts(),loadDashboard(),loadSales(),loadCustomers(),loadStockin()]);return result;}
 function renderStockinProducts(){
   const term=normalizeText($("#stockin-search")?.value||"");
   const list=state.products.filter(p=>p.active!==false && p.trackStock!==false && (!term||normalizeText(`${p.name} ${p.category}`).includes(term)));
@@ -642,6 +627,28 @@ function beginEditStockin(id){
   renderStockinProducts(); $("#page-stockin").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
+
+async function loadAliases(){
+  const r=await api("/api/ai/aliases"); state.aliases=r.aliases||[];
+  const sel=$("#alias-product"); if(sel)sel.innerHTML=state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  const list=$("#alias-list"); if(list){list.className=`list${state.aliases.length?"":" empty"}`;list.innerHTML=state.aliases.length?state.aliases.map(a=>{const p=state.products.find(x=>x.id===a.productId);return `<div class="list-row" data-id="${a.id}"><div><strong>${escapeHtml(a.alias)}</strong><small>${escapeHtml(p?.name||a.productId)}</small></div><button class="button small danger delete-alias">×</button></div>`}).join(""):"Chưa có alias.";}
+}
+async function loadTransactions(){
+  const r=await api("/api/transactions"), list=$("#transactions-list"); if(!list)return;
+  const arr=r.transactions||[];list.className=`list${arr.length?"":" empty"}`;list.innerHTML=arr.length?arr.map(t=>`<div class="list-row"><div><strong>${escapeHtml(t.summary||t.type)}</strong><small>${new Date(t.createdAt).toLocaleString("vi-VN")} · ${escapeHtml(t.id)}</small></div><span class="badge">${escapeHtml(t.source||"")}</span></div>`).join(""):"Chưa có giao dịch.";
+}
+async function loadSnapshots(){
+  const r=await api("/api/snapshots"),list=$("#snapshots-list"); if(!list)return;
+  const arr=r.snapshots||[];list.className=`list${arr.length?"":" empty"}`;list.innerHTML=arr.length?arr.map(s=>`<div class="list-row" data-id="${s.id}"><div><strong>${escapeHtml(s.label)}</strong><small>${new Date(s.createdAt).toLocaleString("vi-VN")}</small></div><button class="button small secondary restore-snapshot">Khôi phục</button></div>`).join(""):"Chưa có snapshot.";
+}
+function renderAiPreview(preview,message){
+  const box=document.createElement("div");box.className="message assistant ai-preview";
+  box.innerHTML=`<strong>${escapeHtml(preview.summary||"Xác nhận thao tác")}</strong><div class="inline-actions"><button class="button small confirm-ai-action">Xác nhận</button><button class="button small secondary cancel-ai-action">Hủy</button></div>`;
+  box.querySelector(".confirm-ai-action").addEventListener("click",async()=>{try{const r=await api("/api/ai/chat",{method:"POST",body:JSON.stringify({message,confirmAction:preview})});box.innerHTML=`<strong>${escapeHtml(r.answer)}</strong>`;await Promise.all([loadProducts(),loadCustomers(),loadDashboard(),loadSales(),loadStockin(),loadTransactions(),loadSnapshots()]);}catch(e){box.innerHTML=`<span class="error">${escapeHtml(e.message)}</span>`;}});
+  box.querySelector(".cancel-ai-action").addEventListener("click",()=>box.remove());
+  $("#chat-messages").appendChild(box);$("#chat-messages").scrollTop=$("#chat-messages").scrollHeight;
+}
+
 async function init() {
   try {
     await loadHealth();
@@ -655,6 +662,9 @@ async function init() {
 $("#store-select").addEventListener("change",e=>switchStore(e.target.value));
 $("#new-store").addEventListener("click",createStore); $("#new-store-2").addEventListener("click",createStore);
 $("#go-data").addEventListener("click",()=>navigateTo("data"));
+$("#undo-last")?.addEventListener("click",undoLastAction);
+$("#refresh-insights")?.addEventListener("click",loadSmartInsights);
+$("#smart-insights-list")?.addEventListener("click",e=>{const b=e.target.closest(".insight-go");if(b)navigateTo(b.dataset.target);});
 $("#stores-list").addEventListener("click",async e=>{const card=e.target.closest(".store-card");if(!card)return;try{if(e.target.closest(".select-store"))return switchStore(card.dataset.id);if(e.target.closest(".rename-store")){const cur=state.stores.find(s=>s.id===card.dataset.id);const name=prompt("Tên cửa hàng:",cur?.name||"");if(name?.trim()){await api(`/api/stores/${card.dataset.id}`,{method:"PATCH",body:JSON.stringify({name:name.trim()})});await loadStores();}}if(e.target.closest(".delete-store")){if(!confirm("Xóa cửa hàng này và toàn bộ dữ liệu bên trong?"))return;await api(`/api/stores/${card.dataset.id}`,{method:"DELETE"});await loadStores();await initAppData();}}catch(err){toast(err.message,true);}});
 $("#export-json").addEventListener("click",async()=>{try{const data=await getBackup();downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),`cantin-${todayKey()}.json`);}catch(e){toast(e.message,true);}});
 $("#export-excel").addEventListener("click",async()=>{try{const data=await getBackup(),wb=workbookFromBackup(data);XLSX.writeFile(wb,`cantin-${todayKey()}.xlsx`);}catch(e){toast(e.message,true);}});
@@ -666,12 +676,18 @@ $("#assistant-file").addEventListener("change",async e=>{const file=e.target.fil
 init();
 function formatMoneyInput(value){return Math.round(Number(value)||0).toLocaleString("vi-VN");}
 function evalMoneyExpression(raw,current=0){
-  let s=String(raw??"").trim().replace(/\s/g,"");
+  let s=String(raw??"").trim().replace(/\s/g,"").toLowerCase();
   if(!s)return 0;
   const op=s[0], isOp="+-*/×÷".includes(op);
-  const clean=x=>Number(String(x).replace(/\./g,"").replace(/,/g,"."))||0;
-  if(isOp){const n=clean(s.slice(1)); if(op==="+")return current+n;if(op==="-")return current-n;if(op==="*"||op==="×")return current*n;if(op==="/"||op==="÷")return n?current/n:current;}
-  return clean(s);
+  const token=(x,smartThousands=true)=>{
+    const t=String(x||"").trim().toLowerCase(); if(!t)return 0;
+    const hasK=t.endsWith("k"), base=t.replace(/k$/,"");
+    let n=Number(base.replace(/\./g,"").replace(/,/g,"."))||0;
+    if(hasK)n*=1000; else if(smartThousands && /^\d{1,3}(?:[.,]\d+)?$/.test(base) && n>0 && n<1000)n*=1000;
+    return n;
+  };
+  if(isOp){const smart=(op==="+"||op==="-");const n=token(s.slice(1),smart);if(op==="+")return current+n;if(op==="-")return current-n;if(op==="*"||op==="×")return current*n;if(op==="/"||op==="÷")return n?current/n:current;}
+  return token(s,true);
 }
 function bindMoneyInputs(scope=document){
   scope.querySelectorAll(".money-input").forEach(input=>{

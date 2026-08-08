@@ -112,11 +112,11 @@ function applyCustomerPayment(data, customerId, amount, note = "", debtId = "") 
 
 
 function emptyStore(name="Cửa hàng mới") {
-  return { products:[], customers:[], debts:[], sales:[], weeklyTemplate:[], weeklyAudits:[], stockAdjustments:[], stockReceipts:[], meta:{ name, createdAt:new Date().toISOString() } };
+  return { products:[], customers:[], debts:[], sales:[], weeklyTemplate:[], weeklyAudits:[], stockAdjustments:[], stockReceipts:[], transactions:[], aliases:[], snapshots:[], meta:{ name, createdAt:new Date().toISOString() } };
 }
 function ensureStoreShape(data, name="Cửa hàng") {
   const shaped = data && typeof data === "object" ? data : {};
-  for (const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts"]) if (!Array.isArray(shaped[key])) shaped[key]=[];
+  for (const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts","transactions","aliases","snapshots"]) if (!Array.isArray(shaped[key])) shaped[key]=[];
   shaped.meta = shaped.meta && typeof shaped.meta === "object" ? shaped.meta : {name};
   if (!shaped.meta.name) shaped.meta.name=name;
   return shaped;
@@ -150,6 +150,112 @@ function findProductFlexible(products, message){
     if(hits && s>score){best=p;score=s;}
   }
   return best;
+}
+
+function resolveAlias(data,message){
+  const q=normalizeText(message);
+  for(const a of (data.aliases||[])){
+    if(q.includes(normalizeText(a.alias||""))){
+      const p=data.products.find(x=>x.id===a.productId);
+      if(p)return p;
+    }
+  }
+  return null;
+}
+function findProductSmart(data,message){
+  return resolveAlias(data,message)||findProductFlexible(data.products,message);
+}
+function createTx(data,type,summary,changes=[],source="manual"){
+  data.transactions=data.transactions||[];
+  const tx={id:"TX-"+new Date().toISOString().replace(/\D/g,"").slice(0,14)+"-"+Math.random().toString(36).slice(2,6).toUpperCase(),type,summary,changes,source,createdAt:new Date().toISOString()};
+  data.transactions.push(tx);
+  if(data.transactions.length>500)data.transactions=data.transactions.slice(-500);
+  return tx;
+}
+function snapshotStore(data,label="Tự động"){
+  data.snapshots=data.snapshots||[];
+  const copy=structuredClone(data);
+  delete copy.snapshots;
+  data.snapshots.push({id:newId(),label,createdAt:new Date().toISOString(),data:copy});
+  if(data.snapshots.length>20)data.snapshots=data.snapshots.slice(-20);
+}
+function customerByText(data,message){
+  const q=normalizeText(message); let best=null,score=0;
+  for(const c of data.customers||[]){
+    const n=normalizeText(c.name); if(q.includes(n)&&n.length>score){best=c;score=n.length;continue;}
+    const words=n.split(" ").filter(w=>w.length>=2); const hits=words.filter(w=>q.includes(w)).length;
+    if(hits>0&&hits*10+n.length>score){best=c;score=hits*10+n.length;}
+  }
+  return best;
+}
+function parseSmartMoneyText(text){
+  const m=String(text||"").toLowerCase().replace(/\s/g,"").match(/(\d+(?:[.,]\d+)?)(k|nghin|ngàn|ngan|tr|triệu|trieu)?/);
+  if(!m)return null;
+  let n=Number(m[1].replace(",",".")); const u=m[2]||"";
+  if(u==="k"||u.includes("ng"))n*=1000;
+  else if(u==="tr"||u.includes("tri"))n*=1000000;
+  else if(n>0&&n<1000)n*=1000;
+  return Math.round(n);
+}
+function debtCommandPreview(data,message){
+  const q=normalizeText(message), customer=customerByText(data,message);
+  if(!customer)return null;
+  const isPay=q.includes("tra no")||q.includes("trả nợ")||q.includes(" da tra")||q.includes(" đã trả")||q.includes(" tra ")||q.includes(" trả ");
+  const isDebt=q.includes("no ")||q.includes("nợ ")||q.includes("ghi no")||q.includes("ghi nợ");
+  if(!isPay&&!isDebt)return null;
+  const amount=parseSmartMoneyText(message);
+  if(!amount)return {error:`Hãy nói rõ số tiền cho ${customer.name}.`};
+  if(isPay)return {kind:"debt_payment",customerId:customer.id,customerName:customer.name,amount,summary:`Ghi nhận ${customer.name} trả ${amount.toLocaleString("vi-VN")}đ`};
+  const note=String(message).replace(/\d+(?:[.,]\d+)?\s*(k|nghìn|ngan|ngàn|tr|triệu|trieu)?/i,"").trim();
+  return {kind:"debt_add",customerId:customer.id,customerName:customer.name,amount,note,summary:`Ghi nợ ${customer.name}: ${amount.toLocaleString("vi-VN")}đ`};
+}
+function inventoryPreview(data,message){
+  const q=normalizeText(message), product=findProductSmart(data,message); if(!product)return null;
+  const isImport=q.includes("nhap")||q.includes("nhập")||q.includes("ve them")||q.includes("về thêm");
+  const isExport=q.includes("xuat")||q.includes("xuất");
+  const soldOut=q.includes("ban het")||q.includes("bán hết")||q.includes("het hang")||q.includes("hết hàng")||q.includes("het roi")||q.includes("hết rồi");
+  const hasNumber=/\d/.test(q);
+  const isCheck=q.includes("kiem kho")||q.includes("kiểm kho")||soldOut||((q.includes("con ")||q.includes("còn "))&&hasNumber);
+  if(!isImport&&!isExport&&!isCheck)return null;
+  let amount=parseNumberFromText(q);
+  const before=Number(product.stock)||0; let after=before,kind="",label="";
+  if(isImport){if(amount===null)return {error:`Hãy cho biết số lượng nhập ${product.name}.`};if(q.includes("thung")||q.includes("thùng")||q.includes("ket")||q.includes("két"))amount*=Math.max(1,Number(product.packSize)||1);after=before+amount;kind="stock_in";label="Nhập kho";}
+  else if(isExport){if(amount===null)return {error:`Hãy cho biết số lượng xuất ${product.name}.`};after=Math.max(0,before-amount);kind="stock_out";label="Xuất kho";}
+  else {if(soldOut)amount=0;if(amount===null)return {error:`Hãy cho biết tồn thực tế ${product.name}.`};after=Math.max(0,amount);kind="inventory_check";label="Kiểm kho";}
+  return {kind,productId:product.id,productName:product.name,before,after,delta:after-before,amount,label,summary:`${label} ${product.name}: ${before} → ${after} ${product.unit||""}`};
+}
+function executeAiAction(data,action,message){
+  snapshotStore(data,`Trước AI: ${action.summary||message}`);
+  if(action.kind==="debt_add"){
+    const d={id:newId(),kind:"ai",customerId:action.customerId,amount:action.amount,paid:0,balance:action.amount,note:action.note||message,payments:[],createdAt:new Date().toISOString(),source:"ai"};
+    data.debts.push(d);createTx(data,"debt_add",action.summary,[{entity:"debt",id:d.id}], "ai");return {answer:`Đã ${action.summary}.`,txId:data.transactions.at(-1)?.id};
+  }
+  if(action.kind==="debt_payment"){
+    const r=applyCustomerPayment(data,action.customerId,action.amount,"AI: "+message);
+    createTx(data,"debt_payment",action.summary,[{customerId:action.customerId,amount:r.appliedTotal}], "ai");
+    return {answer:`Đã ${action.summary}.`,txId:data.transactions.at(-1)?.id};
+  }
+  if(["stock_in","stock_out","inventory_check"].includes(action.kind)){
+    const p=data.products.find(x=>x.id===action.productId); if(!p)bad("Không tìm thấy sản phẩm.");
+    if(Number(p.stock)===Number(action.after)&&action.kind==="inventory_check")return {answer:`${p.name} hiện đã là ${p.stock} ${p.unit||""}. Không tạo phiếu trùng.`,noop:true};
+    const before=Number(p.stock)||0;p.stock=action.after;
+    data.stockAdjustments=data.stockAdjustments||[];
+    const rec={id:newId(),productId:p.id,productName:p.name,before,after:action.after,delta:action.after-before,action:action.label,message,createdAt:new Date().toISOString()};
+    data.stockAdjustments.push(rec);
+    let auditId="";
+    if(action.kind==="inventory_check"){
+      const sold=Math.max(0,before-action.after),now=new Date(),key=now.toISOString().slice(0,10);let saleId="";
+      if(sold>0){
+        const total=sold*(Number(p.salePrice)||0),costTotal=sold*(Number(p.costPrice)||0);saleId=newId();
+        data.sales.push({id:saleId,createdAt:now.toISOString(),items:[{productId:p.id,name:p.name,category:p.category,unit:p.unit,quantity:sold,unitPrice:p.salePrice,costPrice:p.costPrice,subtotal:total}],total,costTotal,profit:total-costTotal,paymentMethod:"inventory",customerId:"",customer:"",note:`AI kiểm kho: ${message}`,source:"weekly_inventory"});
+      }
+      auditId=newId();data.weeklyAudits=data.weeklyAudits||[];
+      data.weeklyAudits.push({id:auditId,weekStart:key,weekEnd:key,createdAt:now.toISOString(),note:`AI: ${message}`,lines:[{productId:p.id,name:p.name,unit:p.unit,packSize:p.packSize||1,stockBefore:before,openingStock:before,receivedCases:0,receivedUnits:0,receivedQty:0,endingStock:action.after,soldQty:sold,recordedQty:0,adjustmentQty:sold,revenue:sold*(Number(p.salePrice)||0),cost:sold*(Number(p.costPrice)||0),profit:sold*((Number(p.salePrice)||0)-(Number(p.costPrice)||0))}],totalSold:sold,totalRevenue:sold*(Number(p.salePrice)||0),totalCost:sold*(Number(p.costPrice)||0),totalProfit:sold*((Number(p.salePrice)||0)-(Number(p.costPrice)||0)),adjustmentSaleId:saleId,source:"ai_inventory"});
+    }
+    const tx=createTx(data,action.kind,action.summary,[{productId:p.id,before,after:action.after,auditId}], "ai");
+    return {answer:`Đã ${action.summary}.`,txId:tx.id};
+  }
+  bad("Lệnh AI chưa hỗ trợ.");
 }
 function inventoryCommand(data,message){
   const q=normalizeText(message); const product=findProductFlexible(data.products,message); if(!product) return null;
@@ -679,51 +785,57 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
     return sendJson(res,200,{ok:true,deleted});
   }
 
-  if(req.method==="POST"&&pathname==="/api/ai/chat") {
-    const body = await readJsonBody(req);
-    const message = String(body.message || "").trim();
-    if (!message) bad("Bạn chưa nhập câu hỏi.");
-    const command = await updateStore(data => inventoryCommand(data, message));
-    if (command && !command.error) return sendJson(res,200,{answer:command.answer,mode:"action",action:command});
-    if (command && command.error) return sendJson(res,200,{answer:command.error,mode:"local"});
-    const data = await readStore();
-    const localAnswer = localAssistant(data, message);
-    if (!process.env.OPENAI_API_KEY) return sendJson(res, 200, { answer: localAnswer, mode: "local" });
-
-    const context = {
-      generatedAt: new Date().toISOString(),
-      products: data.products,
-      customers: data.customers.map(c => ({ ...c, debtBalance: customerDebtBalance(data, c.id) })),
-      recentSales: data.sales.slice(-150),
-      openDebts: data.debts.filter(d => d.balance > 0),
-      weeklyAudits: data.weeklyAudits.slice(-12)
-    };
-    try {
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || "gpt-5-mini",
-          instructions: "Bạn là trợ lý quản lý căn tin. Chỉ dựa vào JSON dữ liệu được cung cấp. Trả lời tiếng Việt, tính toán rõ ràng, không tự bịa. Số tiền trình bày theo đồng Việt Nam.",
-          input: `DỮ LIỆU CĂN TIN:\n${JSON.stringify(context)}\n\nCÂU HỎI: ${message}`
-        })
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result?.error?.message || "OpenAI API trả lỗi.");
-      const answer = result.output_text || result.output?.flatMap(x => x.content || []).map(x => x.text || "").join("\n") || localAnswer;
-      return sendJson(res, 200, { answer, mode: "openai" });
-    } catch (error) {
-      console.warn("OpenAI không khả dụng, chuyển sang trợ lý miễn phí:", error.message);
-      return sendJson(res, 200, { answer: `${localAnswer}\n\n(Ghi chú: OpenAI đang không khả dụng nên app đã dùng trợ lý miễn phí tích hợp.)`, mode: "local-fallback" });
-    }
+  if(req.method==="POST"&&pathname==="/api/undo"){
+    const result=await updateRoot(root=>{root.__undoHistory=root.__undoHistory&&typeof root.__undoHistory==="object"?root.__undoHistory:{};const store=activeStore(root),hist=Array.isArray(root.__undoHistory[store.id])?root.__undoHistory[store.id]:[];if(!hist.length)bad("Chưa có thay đổi nào để hoàn tác.");const snap=hist.pop();store.data=ensureStoreShape(structuredClone(snap.data),store.name);root.__undoHistory[store.id]=hist;return {ok:true,message:`Đã hoàn tác về trạng thái trước lúc ${new Date(snap.at).toLocaleString("vi-VN")}.`};});return sendJson(res,200,result);
+  }
+  if(req.method==="GET"&&pathname==="/api/insights"){
+    const data=await readStore(),items=[];const active=(data.products||[]).filter(p=>p.active!==false&&p.trackStock!==false);const zero=active.filter(p=>(Number(p.stock)||0)<=0);const low=active.filter(p=>(Number(p.stock)||0)>0&&(Number(p.stock)||0)<=(Number(p.minStock)||0));
+    if(zero.length)items.push({level:"danger",title:`${zero.length} mặt hàng đã hết`,detail:zero.slice(0,5).map(p=>p.name).join(", ")+(zero.length>5?"…":""),target:"inventory"});
+    if(low.length)items.push({level:"warning",title:`${low.length} mặt hàng chạm mức tồn tối thiểu`,detail:low.slice(0,5).map(p=>`${p.name} còn ${p.stock}`).join(", ")+(low.length>5?"…":""),target:"inventory"});
+    const oddDebts=(data.debts||[]).filter(d=>(Number(d.balance)||0)>0&&(Number(d.balance)||0)<1000);if(oddDebts.length)items.push({level:"warning",title:`${oddDebts.length} khoản nợ dưới 1.000đ cần kiểm tra`,detail:"Có thể là số tiền nhập thiếu .000.",target:"customers"});
+    const totalDebt=(data.debts||[]).reduce((s,d)=>s+(Number(d.balance)||0),0);if(totalDebt>0)items.push({level:"info",title:`Tổng công nợ ${formatMoney(totalDebt)}`,detail:`${new Set((data.debts||[]).filter(d=>d.balance>0).map(d=>d.customerId)).size} khách đang còn nợ.`,target:"customers"});
+    return sendJson(res,200,{items});
   }
 
+  if(req.method==="POST"&&pathname==="/api/ai/chat") {
+    const body=await readJsonBody(req),message=String(body.message||"").trim();
+    if(!message)bad("Bạn chưa nhập câu hỏi.");
+    if(body.confirmAction){
+      const result=await updateStore(data=>executeAiAction(data,body.confirmAction,message));
+      return sendJson(res,200,{answer:result.answer,mode:"action",txId:result.txId||"",noop:!!result.noop});
+    }
+    const data=await readStore();
+    const preview=debtCommandPreview(data,message)||inventoryPreview(data,message);
+    if(preview?.error)return sendJson(res,200,{answer:preview.error,mode:"local"});
+    if(preview)return sendJson(res,200,{answer:`Tôi hiểu: ${preview.summary}.`,mode:"preview",preview});
+    const localAnswer=localAssistant(data,message);
+    return sendJson(res,200,{answer:localAnswer,mode:"local"});
+  }
+
+  if(req.method==="POST"&&pathname==="/api/ai/alias"){
+    const body=await readJsonBody(req),alias=String(body.alias||"").trim(),productId=String(body.productId||"");
+    if(!alias||!productId)bad("Thiếu alias hoặc sản phẩm.");
+    const result=await updateStore(data=>{data.aliases=data.aliases||[];data.aliases=data.aliases.filter(a=>normalizeText(a.alias)!==normalizeText(alias));data.aliases.push({id:newId(),alias,productId,createdAt:new Date().toISOString()});return {ok:true};});
+    return sendJson(res,200,result);
+  }
+  if(req.method==="GET"&&pathname==="/api/ai/aliases"){const data=await readStore();return sendJson(res,200,{aliases:data.aliases||[]});}
+  if(req.method==="DELETE"&&pathname.startsWith("/api/ai/alias/")){const id=pathname.split("/").pop();const r=await updateStore(data=>{data.aliases=(data.aliases||[]).filter(a=>a.id!==id);return {ok:true};});return sendJson(res,200,r);}
+
+  if(req.method==="GET"&&pathname==="/api/transactions"){const data=await readStore();return sendJson(res,200,{transactions:(data.transactions||[]).slice().reverse().slice(0,200)});}
+  if(req.method==="GET"&&pathname==="/api/snapshots"){const data=await readStore();return sendJson(res,200,{snapshots:(data.snapshots||[]).map(s=>({id:s.id,label:s.label,createdAt:s.createdAt})).reverse()});}
+  if(req.method==="POST"&&pathname==="/api/snapshot"){
+    const body=await readJsonBody(req);const r=await updateStore(data=>{snapshotStore(data,body.label||"Thủ công");return {ok:true,id:data.snapshots.at(-1).id};});return sendJson(res,200,r);
+  }
+  if(req.method==="POST"&&pathname==="/api/restore-snapshot"){
+    const body=await readJsonBody(req);
+    const r=await updateStore(data=>{const s=(data.snapshots||[]).find(x=>x.id===body.id);if(!s)bad("Không tìm thấy bản sao lưu.");const keep=structuredClone(data.snapshots||[]);for(const k of Object.keys(data))delete data[k];Object.assign(data,structuredClone(s.data));data.snapshots=keep;return {ok:true};});return sendJson(res,200,r);
+  }
   if(req.method==="POST"&&pathname==="/api/import/backup"){
     const body=await readJsonBody(req); const incoming=body.data; if(!incoming||typeof incoming!=="object")bad("Tệp nhập không có dữ liệu hợp lệ.");
     const mode=body.mode==="merge"?"merge":"replace";
     const result=await updateStore(data=>{
       const src=ensureStoreShape(structuredClone(incoming));
-      if(mode==="replace"){for(const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts"])data[key]=src[key]||[];data.meta={...(data.meta||{}),...(src.meta||{})};}
+      if(mode==="replace"){for(const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts","transactions","aliases","snapshots"])data[key]=src[key]||[];data.meta={...(data.meta||{}),...(src.meta||{})};}
       else {for(const key of ["products","customers","debts","sales","weeklyAudits","stockAdjustments"]){const existing=new Set((data[key]||[]).map(x=>x.id));for(const item of src[key]||[])if(!existing.has(item.id))data[key].push(item);}}
       return {ok:true,counts:{products:data.products.length,customers:data.customers.length,debts:data.debts.length,sales:data.sales.length,weeklyAudits:data.weeklyAudits.length}};
     }); return sendJson(res,200,result);
@@ -747,14 +859,14 @@ export async function onRequest(context){
   const request=context.request; const url=new URL(request.url); const pathname=url.pathname;
   try{
     if(pathname==="/api/health"){
-      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"2.8-video-exact-debt"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"3.0-full"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     }
     if(pathname==="/api/auth/login"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     if(pathname==="/api/auth/logout"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8"}});
     const readRoot=async()=>{ let raw=await rpc("cantin_read_store_public",{}); const root=normalizeRoot(raw); const migrated=syncCanonicalDebtData(root); if(!raw||raw.__multiStore!==true||migrated)await rpc("cantin_write_store_public",{p_data:root}); return root; };
     const updateRoot=async(mutator)=>{const root=await readRoot();const result=await mutator(root);await rpc("cantin_write_store_public",{p_data:root});return result;};
     const readStore=async()=>{const root=await readRoot();return activeStore(root).data;};
-    const updateStore=async(mutator)=>{const root=await readRoot();const store=activeStore(root);const result=await mutator(store.data);await rpc("cantin_write_store_public",{p_data:root});return result;};
+    const updateStore=async(mutator)=>{const root=await readRoot();const store=activeStore(root);root.__undoHistory=root.__undoHistory&&typeof root.__undoHistory==="object"?root.__undoHistory:{};const key=store.id;const hist=Array.isArray(root.__undoHistory[key])?root.__undoHistory[key]:[];hist.push({at:new Date().toISOString(),data:structuredClone(store.data)});root.__undoHistory[key]=hist.slice(-12);const result=await mutator(store.data);await rpc("cantin_write_store_public",{p_data:root});return result;};
     const req=makeReq(request,true), res=makeRes();
     await handleApi(req,res,url,readStore,updateStore,readRoot,updateRoot);
     return new Response(res.body,{status:res.status,headers:res.headers});

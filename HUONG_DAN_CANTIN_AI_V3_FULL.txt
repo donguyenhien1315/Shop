@@ -1,0 +1,17 @@
+CANTIN AI v3.0 FULL
+- AI Command Center: hỏi dữ liệu + lệnh công nợ/nhập kho/xuất kho/kiểm kho.
+- Preview -> Xác nhận -> mới ghi dữ liệu.
+- Alias AI: VD rs = Rockstar.
+- Nhật ký transaction ID.
+- Snapshot/khôi phục phiên bản.
+- Cảnh báo thông minh trên Tổng quan.
+- Tiền thông minh: 43 = 43.000; 43k = 43.000; +50 = +50.000.
+- Không tạo phiếu kiểm kho trùng nếu tồn đã đúng.
+- Giữ bán hàng, nhập kho, kiểm kho, công nợ, import/export.
+- Không cần chạy SQL mới.
+
+Cập nhật:
+1. Giải nén.
+2. Upload toàn bộ nội dung lên GitHub repo Shop, ghi đè file cũ.
+3. Chờ Cloudflare deploy.
+4. Tải lại trang.

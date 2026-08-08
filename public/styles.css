@@ -61,3 +61,13 @@
   .video-debt-name h3{font-size:.96rem}
   .video-debt-right .debt-balance{font-size:.93rem}
 }
+
+/* v3.0 AI safety + insights */
+.smart-insights{border:1px solid var(--border,#e5e7eb)}
+.insight-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border,#e5e7eb)}
+.insight-row:last-child{border-bottom:0}.insight-row small{display:block;margin-top:3px;opacity:.72}
+.insight-row.danger strong{color:#b42318}.insight-row.warning strong{color:#b54708}
+.ai-confirm-actions{display:flex;gap:8px;margin-top:10px}
+
+.ai-preview{border:1px solid var(--border,#e5e7eb);background:color-mix(in srgb,var(--surface,#fff) 92%,#2563eb 8%)}
+#transactions-list .badge{font-size:.75rem;opacity:.7}

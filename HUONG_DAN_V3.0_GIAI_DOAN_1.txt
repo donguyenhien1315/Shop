@@ -1,0 +1,10 @@
+CANTIN AI v3.0 - GIAI ĐOẠN 1
+
+- AI xem trước lệnh làm thay đổi kho rồi mới Xác nhận.
+- Nút Hoàn tác trên Tổng quan, giữ tối đa 12 trạng thái gần nhất.
+- AI đề xuất hôm nay: hết hàng, tồn thấp, khoản nợ dưới 1.000đ nghi nhập thiếu .000, tổng công nợ.
+- Ô tiền thông minh: 43 hoặc 43k => 43.000đ; +50 => cộng 50.000đ; *2 và /2 vẫn đúng.
+- Không tạo thay đổi AI nếu tồn đã đúng (delta = 0).
+- Giữ giao diện Công nợ kiểu video, Bán hàng, Nhập kho, Kiểm kho, Supabase hiện tại.
+
+CẬP NHẬT: upload toàn bộ lên GitHub Shop, ghi đè file cũ. KHÔNG chạy SQL công nợ.
