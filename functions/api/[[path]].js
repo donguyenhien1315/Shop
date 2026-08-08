@@ -179,11 +179,20 @@ function inventoryCommand(data,message){
   const delta=after-before;
   const rec={id:newId(),productId:product.id,productName:product.name,before,after,delta,action,message,createdAt:new Date().toISOString()};
   data.stockAdjustments=data.stockAdjustments||[]; data.stockAdjustments.push(rec);
-  if((isCheck||soldOut) && before>after){
-    const sold=before-after, total=sold*(Number(product.salePrice)||0), costTotal=sold*(Number(product.costPrice)||0);
-    data.sales.push({id:newId(),createdAt:new Date().toISOString(),items:[{productId:product.id,name:product.name,category:product.category,unit:product.unit,quantity:sold,unitPrice:product.salePrice,costPrice:product.costPrice,subtotal:total}],total,costTotal,profit:total-costTotal,paymentMethod:"inventory",customerId:"",customer:"",note:`AI kiểm kho: ${message}`,source:"ai_inventory"});
+  let auditId="";
+  if(isCheck||soldOut){
+    const now=new Date(), key=now.toISOString().slice(0,10), sold=Math.max(0,before-after);
+    let saleId="";
+    if(sold>0){
+      const total=sold*(Number(product.salePrice)||0), costTotal=sold*(Number(product.costPrice)||0);
+      saleId=newId();
+      data.sales.push({id:saleId,createdAt:now.toISOString(),items:[{productId:product.id,name:product.name,category:product.category,unit:product.unit,quantity:sold,unitPrice:product.salePrice,costPrice:product.costPrice,subtotal:total}],total,costTotal,profit:total-costTotal,paymentMethod:"inventory",customerId:"",customer:"",note:`AI kiểm kho: ${message}`,source:"weekly_inventory"});
+    }
+    auditId=newId();
+    data.weeklyAudits=data.weeklyAudits||[];
+    data.weeklyAudits.push({id:auditId,weekStart:key,weekEnd:key,createdAt:now.toISOString(),note:`AI: ${message}`,lines:[{productId:product.id,name:product.name,unit:product.unit,packSize:product.packSize||1,stockBefore:before,openingStock:before,receivedCases:0,receivedUnits:0,receivedQty:0,endingStock:after,soldQty:sold,recordedQty:0,adjustmentQty:sold,revenue:sold*(Number(product.salePrice)||0),cost:sold*(Number(product.costPrice)||0),profit:sold*((Number(product.salePrice)||0)-(Number(product.costPrice)||0))}],totalSold:sold,totalRevenue:sold*(Number(product.salePrice)||0),totalCost:sold*(Number(product.costPrice)||0),totalProfit:sold*((Number(product.salePrice)||0)-(Number(product.costPrice)||0)),adjustmentSaleId:saleId,source:"ai_inventory"});
   }
-  return {action,product,before,after,delta,answer:`${action} ${product.name}: ${before.toLocaleString("vi-VN")} → ${after.toLocaleString("vi-VN")} ${product.unit||""}. Đã cập nhật tồn kho${soldOut?" và ghi nhận bán hết":""}.`};
+  return {action,product,before,after,delta,auditId,answer:`${action} ${product.name}: ${before.toLocaleString("vi-VN")} → ${after.toLocaleString("vi-VN")} ${product.unit||""}. Đã cập nhật tồn kho${(isCheck||soldOut)?" và tạo đơn kiểm kho lúc "+new Date().toLocaleString("vi-VN"):""}.`};
 }
 
 
@@ -551,7 +560,7 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
       const record = data.weeklyAudits.find(a => a.id === weeklyParams.id);
       if (!record) return null;
       const latest = data.weeklyAudits.slice().sort((a, b) => b.weekEnd.localeCompare(a.weekEnd) || b.createdAt.localeCompare(a.createdAt))[0];
-      if (latest?.id !== record.id) bad("Chỉ có thể chỉnh sửa lần kiểm kho mới nhất để bảo toàn số tồn kho hiện tại.");
+      const isLatest = latest?.id === record.id;
       if (data.weeklyAudits.some(a => a.id !== record.id && a.weekStart === weekStart && a.weekEnd === weekEnd)) bad("Khoảng ngày này đã có một đơn kiểm kho khác.");
 
       if (record.adjustmentSaleId) data.sales = data.sales.filter(s => s.id !== record.adjustmentSaleId);
@@ -579,9 +588,11 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
         const p = data.products.find(x => x.id === productId);
         if (!p) continue;
         const oldLine = oldLines.get(productId), newLine = newLines.get(productId);
-        if (oldLine && newLine) p.stock = Math.max(0, p.stock + newLine.endingStock - oldLine.endingStock);
-        else if (oldLine) p.stock = Math.max(0, p.stock + (Number(oldLine.stockBefore ?? oldLine.openingStock) || 0) - oldLine.endingStock);
-        else if (newLine) p.stock = newLine.endingStock;
+        if (isLatest) {
+          if (oldLine && newLine) p.stock = Math.max(0, p.stock + newLine.endingStock - oldLine.endingStock);
+          else if (oldLine) p.stock = Math.max(0, p.stock + (Number(oldLine.stockBefore ?? oldLine.openingStock) || 0) - oldLine.endingStock);
+          else if (newLine) p.stock = newLine.endingStock;
+        }
       }
 
       let saleId = "";

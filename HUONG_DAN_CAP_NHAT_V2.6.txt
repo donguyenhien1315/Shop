@@ -1,0 +1,11 @@
+CANTIN AI v2.6
+1. Upload toàn bộ nội dung thư mục này lên GitHub repo Shop, ghi đè file cũ.
+2. Không chạy lại FORCE_SYNC_CONG_NO_CANTIN_V2.sql.
+3. Chờ Cloudflare deploy rồi tải lại trang.
+
+Mới:
+- Công nợ chỉ hiện tên + tổng nợ; bấm vào mới xem chi tiết.
+- Lọc A-Z / Z-A / nợ cao-thấp.
+- Ô tiền định dạng dấu chấm; hỗ trợ + - * / nhanh. Ví dụ đang 100.000, gõ +50000 rồi rời ô => 150.000.
+- AI: “Rockstar bán hết” cập nhật tồn = 0 và tạo đơn kiểm kho đúng thời điểm.
+- Có thể mở và chỉnh sửa chi tiết các đơn kiểm kho.

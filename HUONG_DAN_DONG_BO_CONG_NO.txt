@@ -1,0 +1,5 @@
+1. Vào Supabase > SQL Editor > New query.
+2. Mở file FORCE_SYNC_CONG_NO_CANTIN_V2.sql, copy toàn bộ và bấm Run.
+3. Kết quả cuối phải hiện so_khach = 36 và so_khoan_no = 63.
+4. Quay lại web Cantin AI, tải lại trang.
+5. Script chỉ thay customers + debts, không xóa products/sales/tồn kho/kiểm kho.

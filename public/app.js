@@ -202,10 +202,12 @@ async function loadCustomers() {
 
 function renderCustomers() {
   const term = normalizeText($("#customer-search").value), filter = $("#customer-filter").value;
+  const sortMode = $("#customer-sort")?.value || "az";
   const from = $("#debt-date-from")?.value || "", to = $("#debt-date-to")?.value || "";
   const inRange = debt => (!from || dateKey(debt.createdAt) >= from) && (!to || dateKey(debt.createdAt) <= to);
   let list = state.customers.filter(c => (!term || normalizeText(`${c.name} ${c.group} ${c.phone}`).includes(term)) && (filter === "all" || (filter === "owing" ? c.debtBalance > 0 : c.debtBalance <= 0)));
   if (from || to) list = list.filter(c => state.debts.some(d => d.customerId === c.id && inRange(d)));
+  list.sort((a,b)=>sortMode==="debt"?(b.debtBalance-a.debtBalance):(sortMode==="za"?b.name.localeCompare(a.name,"vi"):a.name.localeCompare(b.name,"vi")));
   $("#customers-list").className = `cards-list${list.length ? "" : " empty"}`;
   $("#customers-list").innerHTML = list.length ? list.map(customer => {
     const allDebts = state.debts.filter(d => d.customerId === customer.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -213,14 +215,14 @@ function renderCustomers() {
     const debtOptions = openDebts.map(d => `<option value="${d.id}">${dateOnly(d.createdAt)} · ${escapeHtml(d.note || "Khoản nợ")} · còn ${money(d.balance)}</option>`).join("");
     const filteredBalance = debts.reduce((sum,d)=>sum+(Number(d.balance)||0),0);
     const history = debts.length ? debts.map(debt => {
-      const payments=(debt.payments||[]).map(pay=>`<div class="payment-entry" data-payment-id="${pay.id}"><label class="field">Ngày trả<input class="edit-payment-date" type="date" value="${dateKey(pay.createdAt)}"></label><label class="field">Số tiền<input class="edit-payment-amount" type="number" min="1" step="1000" value="${pay.amount}"></label><label class="field grow">Ghi chú<input class="edit-payment-note" value="${escapeHtml(pay.note||"")}"></label><button class="button small secondary save-payment" type="button">Lưu trả nợ</button><button class="button small danger delete-payment" type="button">×</button></div>`).join("");
-      return `<article class="debt-entry" data-debt-id="${debt.id}"><div class="debt-line"><div><strong>${money(debt.amount)}</strong><small>${dateOnly(debt.createdAt)} · ${escapeHtml(debt.note || "Không có ghi chú")}</small></div><div class="debt-status">${debt.balance ? `Còn ${money(debt.balance)}` : "Đã trả"}</div></div><div class="debt-edit-grid"><label class="field">Ngày<input class="edit-debt-date" type="date" value="${dateKey(debt.createdAt)}"></label><label class="field">Tổng khoản nợ<input class="edit-debt-amount" type="number" min="1" step="1000" value="${debt.amount}"></label><label class="field span-2">Món nợ/Ghi chú<input class="edit-debt-note" value="${escapeHtml(debt.note || "")}"></label></div>${debt.payments?.length ? `<details class="payment-history"><summary>Đã trả ${money(debt.paid)} qua ${debt.payments.length} lần — chỉnh chi tiết</summary>${payments}</details>` : ""}<div class="inline-actions"><button class="button small secondary save-debt" type="button">Lưu sửa đổi</button><button class="button small danger delete-debt" type="button">Xóa khoản nợ</button></div></article>`;
+      const payments=(debt.payments||[]).map(pay=>`<div class="payment-entry" data-payment-id="${pay.id}"><label class="field">Ngày trả<input class="edit-payment-date" type="date" value="${dateKey(pay.createdAt)}"></label><label class="field">Số tiền<input class="edit-payment-amount money-input" inputmode="decimal" value="${formatMoneyInput(pay.amount)}"></label><label class="field grow">Ghi chú<input class="edit-payment-note" value="${escapeHtml(pay.note||"")}"></label><button class="button small secondary save-payment" type="button">Lưu trả nợ</button><button class="button small danger delete-payment" type="button">×</button></div>`).join("");
+      return `<article class="debt-entry" data-debt-id="${debt.id}"><div class="debt-line"><div><strong>${money(debt.amount)}</strong><small>${dateOnly(debt.createdAt)} · ${escapeHtml(debt.note || "Không có ghi chú")}</small></div><div class="debt-status">${debt.balance ? `Còn ${money(debt.balance)}` : "Đã trả"}</div></div><div class="debt-edit-grid"><label class="field">Ngày<input class="edit-debt-date" type="date" value="${dateKey(debt.createdAt)}"></label><label class="field">Tổng khoản nợ<input class="edit-debt-amount money-input" inputmode="decimal" value="${formatMoneyInput(debt.amount)}"></label><label class="field span-2">Món nợ/Ghi chú<input class="edit-debt-note" value="${escapeHtml(debt.note || "")}"></label></div>${debt.payments?.length ? `<details class="payment-history"><summary>Đã trả ${money(debt.paid)} qua ${debt.payments.length} lần — chỉnh chi tiết</summary>${payments}</details>` : ""}<div class="inline-actions"><button class="button small secondary save-debt" type="button">Lưu sửa đổi</button><button class="button small danger delete-debt" type="button">Xóa khoản nợ</button></div></article>`;
     }).join("") : "<p class='hint'>Không có khoản nợ trong khoảng ngày đã chọn.</p>";
     const balanceLabel=(from||to)?`Trong kỳ: ${money(filteredBalance)} · Tổng còn nợ: ${money(customer.debtBalance)}`:money(customer.debtBalance);
-    return `<article class="customer-card" data-id="${customer.id}"><div class="customer-top"><div><h3>${escapeHtml(customer.name)}</h3><div class="customer-meta">${escapeHtml(customer.group || "Chưa có đơn vị")}${customer.phone ? ` · ${escapeHtml(customer.phone)}` : ""}</div></div><div class="debt-balance ${customer.debtBalance <= 0 ? "zero" : ""}">${balanceLabel}</div></div>${customer.note ? `<p class="hint">${escapeHtml(customer.note)}</p>` : ""}<div class="debt-action-box"><h4>Thêm khoản nợ</h4><div class="debt-form-grid"><input class="new-debt-date" type="date" value="${todayKey()}" aria-label="Ngày ghi nợ"><input class="new-debt-amount" type="number" min="1000" step="1000" placeholder="Số tiền nợ"><input class="new-debt-note" placeholder="Món nợ"></div><button class="button small add-debt" type="button">Ghi nợ thủ công</button></div>${customer.debtBalance > 0 ? `<div class="debt-action-box pay-box"><h4>Ghi nhận trả nợ</h4><div class="debt-form-grid pay-grid"><input class="pay-amount" type="number" min="1000" step="1000" max="${customer.debtBalance}" placeholder="Số tiền trả"><select class="pay-debt-id" aria-label="Chọn khoản nợ"><option value="">Tự động trừ khoản cũ nhất</option>${debtOptions}</select><input class="pay-note" placeholder="Ghi chú trả nợ"></div><button class="button small secondary pay-customer" type="button">Ghi nhận trả nợ</button></div>` : ""}<details class="details debt-history" ${(from||to)?"open":""}><summary>Lịch sử ${debts.length}/${allDebts.length} khoản</summary>${history}</details></article>`;
+    return `<article class="customer-card compact-customer" data-id="${customer.id}"><details class="customer-details"><summary class="customer-summary"><div><h3>${escapeHtml(customer.name)}</h3><small>${escapeHtml(customer.group || "")}</small></div><div class="debt-balance ${customer.debtBalance <= 0 ? "zero" : ""}">${balanceLabel}</div></summary><div class="customer-expanded">${customer.note ? `<p class="hint">${escapeHtml(customer.note)}</p>` : ""}<div class="debt-action-box"><h4>Thêm khoản nợ</h4><div class="debt-form-grid"><input class="new-debt-date" type="date" value="${todayKey()}" aria-label="Ngày ghi nợ"><input class="new-debt-amount money-input" inputmode="decimal" placeholder="Số tiền nợ"><input class="new-debt-note" placeholder="Món nợ"></div><button class="button small add-debt" type="button">Ghi nợ thủ công</button></div>${customer.debtBalance > 0 ? `<div class="debt-action-box pay-box"><h4>Ghi nhận trả nợ</h4><div class="debt-form-grid pay-grid"><input class="pay-amount money-input" inputmode="decimal" placeholder="Số tiền trả"><select class="pay-debt-id" aria-label="Chọn khoản nợ"><option value="">Tự động trừ khoản cũ nhất</option>${debtOptions}</select><input class="pay-note" placeholder="Ghi chú trả nợ"></div><button class="button small secondary pay-customer" type="button">Ghi nhận trả nợ</button></div>` : ""}<div class="debt-history">${history}</div></div></details></article>`;
   }).join("") : "Không tìm thấy công nợ phù hợp.";
+  bindMoneyInputs($("#customers-list"));
 }
-
 function fillEditProduct(product) {
   const form = $("#edit-product-form");
   for (const [key, value] of Object.entries(product)) {
@@ -279,14 +281,12 @@ function calculateWeekly() {
 }
 
 function renderWeeklyHistory() {
-  const latestId = state.weeklyAudits[0]?.id;
   $("#weekly-history").className = `list${state.weeklyAudits.length ? "" : " empty"}`;
-  $("#weekly-history").innerHTML = state.weeklyAudits.length ? state.weeklyAudits.map(audit => `<article class="audit-card" data-id="${audit.id}"><div class="list-row"><div><strong>${audit.weekStart.split("-").reverse().join("/")} – ${audit.weekEnd.split("-").reverse().join("/")}</strong><small>${number(audit.totalSold)} sản phẩm · ${audit.note ? escapeHtml(audit.note) : "Đã chốt"}</small></div><div><strong>${money(audit.totalRevenue)}</strong><small>Lãi ${money(audit.totalProfit)}</small></div></div><details class="details"><summary>Xem ${audit.lines.length} mặt hàng đã kiểm</summary><div class="order-items">${audit.lines.map(line => `<div><span>${escapeHtml(line.name)} · tồn ${number(line.openingStock)} → ${number(line.endingStock)} · bán ${number(line.soldQty)}</span><strong>${money(line.revenue)}</strong></div>`).join("")}</div>${audit.id === latestId ? `<div class="inline-actions"><button class="button small secondary edit-weekly" type="button">Chỉnh sửa</button><button class="button small danger delete-weekly" type="button">Xóa đơn kiểm kho</button></div>` : `<p class="hint compact">Chỉ đơn kiểm kho mới nhất được chỉnh sửa hoặc xóa để không làm sai tồn hiện tại.</p>`}</details></article>`).join("") : "Chưa có dữ liệu kiểm kho.";
+  $("#weekly-history").innerHTML = state.weeklyAudits.length ? state.weeklyAudits.map(audit => `<article class="audit-card" data-id="${audit.id}"><div class="list-row"><div><strong>${audit.weekStart.split("-").reverse().join("/")} – ${audit.weekEnd.split("-").reverse().join("/")}</strong><small>${audit.createdAt ? new Date(audit.createdAt).toLocaleString("vi-VN") + " · " : ""}${number(audit.totalSold)} sản phẩm · ${audit.note ? escapeHtml(audit.note) : "Đã chốt"}</small></div><div><strong>${money(audit.totalRevenue)}</strong><small>Lãi ${money(audit.totalProfit)}</small></div></div><details class="details"><summary>Xem ${audit.lines.length} mặt hàng đã kiểm</summary><div class="order-items">${audit.lines.map(line => `<div><span>${escapeHtml(line.name)} · tồn ${number(line.openingStock)} → ${number(line.endingStock)} · bán ${number(line.soldQty)}</span><strong>${money(line.revenue)}</strong></div>`).join("")}</div><div class="inline-actions"><button class="button small secondary edit-weekly" type="button">Chỉnh sửa chi tiết</button><button class="button small danger delete-weekly" type="button">Xóa đơn kiểm kho</button></div></details></article>`).join("") : "Chưa có dữ liệu kiểm kho.";
 }
-
 function beginEditWeekly(auditId) {
   const audit = state.weeklyAudits.find(item => item.id === auditId);
-  if (!audit || state.weeklyAudits[0]?.id !== audit.id) return toast("Chỉ có thể sửa đơn kiểm kho mới nhất.", true);
+  if (!audit) return toast("Không tìm thấy đơn kiểm kho.", true);
   state.editingAuditId = audit.id;
   $("#week-start").value = audit.weekStart;
   $("#week-end").value = audit.weekEnd;
@@ -446,6 +446,7 @@ $("#customer-form").addEventListener("submit", async event => {
 });
 $("#customer-search").addEventListener("input", renderCustomers);
 $("#customer-filter").addEventListener("change", renderCustomers);
+$("#customer-sort")?.addEventListener("change", renderCustomers);
 $("#debt-date-from").addEventListener("change", renderCustomers);
 $("#debt-date-to").addEventListener("change", renderCustomers);
 $("#clear-debt-dates").addEventListener("click", () => { $("#debt-date-from").value=""; $("#debt-date-to").value=""; renderCustomers(); });
@@ -604,3 +605,22 @@ $("#assistant-upload-button").addEventListener("click",()=>$("#assistant-file").
 $("#assistant-file").addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;const box=$("#assistant-file-result");box.classList.remove("hidden");try{if(file.type.startsWith("image/")){box.innerHTML="Đang OCR hình ảnh… Có thể mất 10–30 giây.";const r=await Tesseract.recognize(file,"vie+eng",{logger:m=>{if(m.status==="recognizing text")box.textContent=`Đang đọc ảnh ${Math.round((m.progress||0)*100)}%…`;}});const text=(r.data.text||"").trim();box.innerHTML=`<strong>Văn bản nhận được:</strong><textarea id="ocr-text">${escapeHtml(text)}</textarea><button class="button small" id="apply-ocr" type="button">AI phân tích & cập nhật kho</button>`;$("#apply-ocr").addEventListener("click",async()=>{const lines=$("#ocr-text").value.split(/\n+/).map(x=>x.trim()).filter(Boolean);let answers=[];for(const line of lines.slice(0,80)){const rr=await sendAssistantMessage(line);if(rr.mode==="action")answers.push(rr.answer);}box.insertAdjacentHTML("beforeend",`<p class="hint">${answers.length?answers.map(escapeHtml).join("<br>"):"AI chưa nhận ra lệnh kho rõ ràng. Hãy chỉnh văn bản thành dạng “Pepsi còn 10”, “nhập 2 thùng Rockstar”…"}</p>`);});}else{box.textContent="Đang phân tích tệp dữ liệu…";const r=await importFile(file,"merge");box.textContent=`AI đã đọc và gộp dữ liệu: ${r.counts.products} mặt hàng, ${r.counts.customers} khách, ${r.counts.sales} đơn.`;}}catch(err){box.textContent=`Lỗi: ${err.message}`;}});
 
 init();
+function formatMoneyInput(value){return Math.round(Number(value)||0).toLocaleString("vi-VN");}
+function evalMoneyExpression(raw,current=0){
+  let s=String(raw??"").trim().replace(/\s/g,"");
+  if(!s)return 0;
+  const op=s[0], isOp="+-*/×÷".includes(op);
+  const clean=x=>Number(String(x).replace(/\./g,"").replace(/,/g,"."))||0;
+  if(isOp){const n=clean(s.slice(1)); if(op==="+")return current+n;if(op==="-")return current-n;if(op==="*"||op==="×")return current*n;if(op==="/"||op==="÷")return n?current/n:current;}
+  return clean(s);
+}
+function bindMoneyInputs(scope=document){
+  scope.querySelectorAll(".money-input").forEach(input=>{
+    if(input.dataset.moneyBound)return; input.dataset.moneyBound="1";
+    input.dataset.base=String(evalMoneyExpression(input.value,0));
+    input.addEventListener("focus",()=>{input.dataset.base=String(evalMoneyExpression(input.value,0));input.select();});
+    input.addEventListener("blur",()=>{const v=Math.max(0,Math.round(evalMoneyExpression(input.value,Number(input.dataset.base)||0)));input.value=formatMoneyInput(v);input.dataset.base=String(v);});
+  });
+}
+function moneyValue(input){return Math.max(0,Math.round(evalMoneyExpression(input?.value||"0",Number(input?.dataset?.base)||0)));}
+
