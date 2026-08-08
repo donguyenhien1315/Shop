@@ -134,21 +134,8 @@ function normalizeRoot(raw) {
 }
 function activeStore(root){ return root.stores.find(s=>s.id===root.activeStoreId) || root.stores[0]; }
 
-const CANONICAL_DEBT_SYNC_VERSION = "source-cantin-v2-2026-08-08";
-function syncCanonicalDebtData(root) {
-  const store = activeStore(root);
-  if (!store || !store.data) return false;
-  store.data.meta = store.data.meta && typeof store.data.meta === "object" ? store.data.meta : {};
-  if (store.data.meta.canonicalDebtSyncVersion === CANONICAL_DEBT_SYNC_VERSION) return false;
-  // Đồng bộ đúng dữ liệu khách hàng + công nợ từ bộ nguồn Cantin AI v2 / Sổ nợ.xlsm.
-  // Không thay đổi sản phẩm, tồn kho, bán hàng, kiểm kho hoặc điều chỉnh kho hiện có.
-  store.data.customers = structuredClone(DEFAULT_STORE.customers || []);
-  store.data.debts = structuredClone(DEFAULT_STORE.debts || []);
-  store.data.meta.canonicalDebtSyncVersion = CANONICAL_DEBT_SYNC_VERSION;
-  store.data.meta.canonicalDebtSyncAt = new Date().toISOString();
-  store.data.meta.canonicalDebtSource = "Cantin AI v2 / Sổ nợ.xlsm";
-  return true;
-}
+const CANONICAL_DEBT_SYNC_VERSION = "disabled-video-exact-2026-08-08";
+function syncCanonicalDebtData(root) { return false; }
 function parseNumberFromText(text){
   const m=String(text||"").replace(/\./g,"").replace(/,/g,"").match(/(?:^|\s)(\d+(?:\.\d+)?)(?:\s|$)/);
   return m ? Number(m[1]) : null;
@@ -760,7 +747,7 @@ export async function onRequest(context){
   const request=context.request; const url=new URL(request.url); const pathname=url.pathname;
   try{
     if(pathname==="/api/health"){
-      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"2.5-full-features"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"2.8-video-exact-debt"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     }
     if(pathname==="/api/auth/login"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     if(pathname==="/api/auth/logout"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8"}});

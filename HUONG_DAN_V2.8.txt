@@ -1,0 +1,6 @@
+1. Upload toàn bộ bản v2.8 lên GitHub Shop để ghi đè bản cũ.
+2. Sau khi Cloudflare deploy, vào Supabase SQL Editor.
+3. Chạy file SYNC_CONG_NO_CHINH_XAC_TU_VIDEO.sql đúng 1 lần.
+4. Kết quả phải là tong_con_no = 4412000.
+5. Tải lại web.
+Lưu ý: SQL này đồng bộ số DƯ công nợ chính xác theo video. Các tính năng v2.7 vẫn được giữ.
