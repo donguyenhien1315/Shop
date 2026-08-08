@@ -1,0 +1,9 @@
+CANTIN AI v2.9 - CHỈ SỬA GIAO DIỆN CÔNG NỢ
+- KHÔNG chỉnh, đồng bộ hay ghi đè số liệu công nợ.
+- Danh sách Công nợ ngoài chỉ hiện Tên + Tổng còn nợ.
+- Chạm vào tên mới bung chi tiết.
+- Có tổng công nợ ở đầu danh sách.
+- Giữ tìm kiếm, A-Z/Z-A/nợ cao-thấp.
+- Giữ sửa/xóa khoản nợ và trả nợ trong phần chi tiết.
+- Giữ toàn bộ tính năng v2.7/v2.8 khác: bán hàng, nhập kho, kiểm kho, AI...
+Cách cập nhật: upload toàn bộ nội dung lên GitHub Shop, ghi đè file cũ. Không chạy SQL.

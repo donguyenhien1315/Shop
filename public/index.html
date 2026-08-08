@@ -131,7 +131,7 @@
       <label class="field">Nợ đầu kỳ<input name="openingDebt" type="number" min="0" value="0"></label><label class="field span-2">Ghi chú<input name="note"></label><button class="button" type="submit">Thêm khách hàng</button>
     </form></article>
     <div class="toolbar debt-toolbar"><input id="customer-search" placeholder="Tìm khách hàng…"><select id="customer-filter"><option value="all">Tất cả</option><option value="owing">Đang còn nợ</option><option value="paid">Đã hết nợ</option></select><select id="customer-sort" aria-label="Sắp xếp tên"><option value="az">Tên A → Z</option><option value="za">Tên Z → A</option><option value="debt">Nợ cao → thấp</option></select><label class="mini-field">Từ ngày<input id="debt-date-from" type="date"></label><label class="mini-field">Đến ngày<input id="debt-date-to" type="date"></label><button class="button small secondary" id="clear-debt-dates" type="button">Xóa lọc ngày</button></div>
-    <div id="customers-list" class="cards-list empty">Chưa có khách hàng.</div>
+    <div class="video-debt-total"><span>Tổng công nợ</span><strong id="debt-total-video">0 ₫</strong></div><div id="customers-list" class="cards-list empty">Chưa có khách hàng.</div>
   </section>
 
   <section class="page" id="page-assistant">

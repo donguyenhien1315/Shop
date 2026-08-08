@@ -39,3 +39,25 @@
 .stockin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stockin-grid label{font-size:.78rem;opacity:.85}.stockin-grid input{width:100%}
 @media(max-width:720px){.stockin-product{grid-template-columns:1fr}.stockin-grid{grid-template-columns:repeat(3,1fr)}}
+
+/* v2.9 - giao diện công nợ dạng danh sách giống video */
+.video-debt-total{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;margin:10px 0 8px;border-radius:14px;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb)}
+.video-debt-total span{font-size:.9rem;opacity:.72}
+.video-debt-total strong{font-size:1.18rem}
+#customers-list.cards-list{gap:0;border:1px solid var(--border,#e5e7eb);border-radius:16px;overflow:hidden;background:var(--surface,#fff)}
+#customers-list .customer-card.compact-customer{border:0;border-radius:0;border-bottom:1px solid var(--border,#e5e7eb);background:transparent}
+#customers-list .customer-card.compact-customer:last-child{border-bottom:0}
+.video-debt-row{min-height:58px;padding:12px 14px!important}
+.video-debt-name h3{font-size:1rem;font-weight:650;margin:0}
+.video-debt-right{display:flex;align-items:center;gap:9px;margin-left:auto}
+.video-debt-right .debt-balance{font-size:.98rem;font-weight:700;white-space:nowrap}
+.debt-chevron{font-size:1.55rem;line-height:1;opacity:.35;transition:transform .18s ease}
+.customer-details[open] .debt-chevron{transform:rotate(90deg)}
+.customer-expanded{background:color-mix(in srgb,var(--surface,#fff) 94%,#000 6%);padding:14px!important}
+.customer-expanded .debt-action-box{border-radius:12px}
+@media(max-width:600px){
+  .video-debt-total{margin-left:0;margin-right:0}
+  .video-debt-row{min-height:56px}
+  .video-debt-name h3{font-size:.96rem}
+  .video-debt-right .debt-balance{font-size:.93rem}
+}
