@@ -32,3 +32,10 @@
 .customer-summary small{opacity:.7}
 .customer-expanded{padding:0 16px 16px;border-top:1px solid var(--border,#e5e7eb)}
 .money-input{font-variant-numeric:tabular-nums}
+
+/* v2.7 nhập kho */
+.stockin-product{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,420px);gap:16px;align-items:center;padding:14px;border:1px solid var(--border,#e5e7eb);border-radius:14px}
+.stockin-product small{display:block;opacity:.7;margin-top:4px}
+.stockin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stockin-grid label{font-size:.78rem;opacity:.85}.stockin-grid input{width:100%}
+@media(max-width:720px){.stockin-product{grid-template-columns:1fr}.stockin-grid{grid-template-columns:repeat(3,1fr)}}

@@ -1,0 +1,9 @@
+CANTIN AI v2.7 - THÊM NHẬP KHO
+- Thêm tab Nhập kho.
+- Tạo phiếu nhập theo ngày giờ, nhiều mặt hàng cùng lúc.
+- Nhập theo thùng + lẻ; tự quy đổi theo packSize.
+- Tự cộng tồn kho.
+- Có lịch sử phiếu nhập.
+- Cho sửa/xóa phiếu; tồn kho tự điều chỉnh lại.
+- Không cần chạy thêm SQL Supabase.
+Upload toàn bộ nội dung thư mục lên GitHub Shop rồi chờ Cloudflare deploy.

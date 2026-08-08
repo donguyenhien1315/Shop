@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const state = {
+  stockReceipts: [], stockinDraft: {}, editingStockinId: "",
   products: [], customers: [], debts: [], sales: [], cart: [], stores: [], activeStoreId: "",
   weeklyTemplate: [], weeklyAudits: [], editingSaleId: "", editingSaleOriginal: null, editingAuditId: ""
 };
@@ -362,7 +363,7 @@ $("#checkout").addEventListener("click", async () => {
     await api(editing ? `/api/sales/${state.editingSaleId}` : "/api/sales", { method:editing ? "PATCH" : "POST", body:JSON.stringify(payload) });
     resetSaleForm();
     toast(editing ? "Đã cập nhật đơn hàng." : "Đã lưu đơn và cập nhật kho.");
-    await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales()]);
+    await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
   } catch (error) { toast(error.message, true); }
 });
 
@@ -378,7 +379,7 @@ $("#sales-history").addEventListener("click", async event => {
       await api(`/api/sales/${card.dataset.id}`, { method:"DELETE" });
       if (state.editingSaleId === card.dataset.id) resetSaleForm();
       toast("Đã xóa đơn và hoàn lại tồn kho.");
-      await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales()]);
+      await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
     } catch (error) { toast(error.message, true); }
   }
 });
@@ -578,9 +579,64 @@ async function sendAssistantMessage(message){const result=await api("/api/ai/cha
 
 async function initAppData() {
   $("#sale-date").value = todayKey();
-  await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales()]);
+  await Promise.all([loadProducts(), loadCustomers(), loadDashboard(), loadSales(), loadStockin()]);
   renderCart();
   setDefaultWeek();
+}
+
+
+function localDateTimeValue(iso=new Date().toISOString()){
+  const d=new Date(iso); const pad=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function renderStockinProducts(){
+  const term=normalizeText($("#stockin-search")?.value||"");
+  const list=state.products.filter(p=>p.active!==false && p.trackStock!==false && (!term||normalizeText(`${p.name} ${p.category}`).includes(term)));
+  $("#stockin-products").className=`cards-list${list.length?"":" empty"}`;
+  $("#stockin-products").innerHTML=list.length?list.map(p=>{
+    const row=state.stockinDraft[p.id]||{cases:0,units:0,cost:p.costPrice||0};
+    return `<article class="stockin-product" data-id="${p.id}"><div><strong>${escapeHtml(p.name)}</strong><small>Tồn hiện tại: ${number(p.stock)} ${escapeHtml(p.unit||"")} · Quy cách ${number(p.packSize||1)}/${escapeHtml(p.unit||"")}</small></div><div class="stockin-grid"><label>Thùng<input class="stockin-cases" type="number" min="0" step="1" value="${row.cases||0}"></label><label>Lẻ<input class="stockin-units" type="number" min="0" step="1" value="${row.units||0}"></label><label>Giá vốn/đv<input class="stockin-cost money-input" inputmode="decimal" value="${formatMoneyInput(row.cost||p.costPrice||0)}"></label></div></article>`;
+  }).join(""):"Không tìm thấy mặt hàng.";
+  bindMoneyInputs($("#stockin-products"));
+}
+function collectStockinLines(){
+  const lines=[];
+  $("#stockin-products").querySelectorAll(".stockin-product").forEach(card=>{
+    const p=state.products.find(x=>x.id===card.dataset.id); if(!p)return;
+    const cases=Number(card.querySelector(".stockin-cases").value)||0, units=Number(card.querySelector(".stockin-units").value)||0;
+    const cost=moneyValue(card.querySelector(".stockin-cost"));
+    if(cases>0||units>0) lines.push({productId:p.id,cases,units,costPrice:cost});
+  });
+  return lines;
+}
+async function loadStockin(){
+  try{
+    const r=await api("/api/stock-in");
+    state.stockReceipts=r.receipts||[];
+    renderStockinHistory();
+  }catch(e){state.stockReceipts=[];renderStockinHistory();}
+}
+function renderStockinHistory(){
+  $("#stockin-history").className=`list${state.stockReceipts.length?"":" empty"}`;
+  $("#stockin-history").innerHTML=state.stockReceipts.length?state.stockReceipts.map(r=>`<article class="audit-card" data-id="${r.id}"><div class="list-row"><div><strong>${new Date(r.createdAt).toLocaleString("vi-VN")}</strong><small>${escapeHtml(r.note||"Phiếu nhập kho")} · ${r.lines.length} mặt hàng</small></div><div><strong>${money(r.totalCost||0)}</strong><small>Tổng giá trị nhập</small></div></div><details class="details"><summary>Xem chi tiết</summary><div class="order-items">${r.lines.map(l=>`<div><span>${escapeHtml(l.name)} · +${number(l.quantity)} ${escapeHtml(l.unit||"")}</span><strong>${money((l.costPrice||0)*l.quantity)}</strong></div>`).join("")}</div><div class="inline-actions"><button class="button small secondary edit-stockin" type="button">Chỉnh sửa</button><button class="button small danger delete-stockin" type="button">Xóa phiếu</button></div></details></article>`).join(""):"Chưa có phiếu nhập kho.";
+}
+function resetStockinForm(){
+  state.stockinDraft={};state.editingStockinId="";
+  $("#stockin-date").value=localDateTimeValue();
+  $("#stockin-note").value="";
+  $("#save-stockin").textContent="Lưu phiếu nhập kho";
+  $("#cancel-stockin-edit").classList.add("hidden");
+  renderStockinProducts();
+}
+function beginEditStockin(id){
+  const r=state.stockReceipts.find(x=>x.id===id); if(!r)return;
+  state.editingStockinId=id; state.stockinDraft={};
+  for(const l of r.lines) state.stockinDraft[l.productId]={cases:l.cases||0,units:l.units||0,cost:l.costPrice||0};
+  $("#stockin-date").value=localDateTimeValue(r.createdAt);
+  $("#stockin-note").value=r.note||"";
+  $("#save-stockin").textContent="Lưu chỉnh sửa phiếu nhập";
+  $("#cancel-stockin-edit").classList.remove("hidden");
+  renderStockinProducts(); $("#page-stockin").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 async function init() {

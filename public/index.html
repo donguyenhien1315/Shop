@@ -98,6 +98,21 @@
     </article>
   </section>
 
+
+  <section class="page" id="page-stockin">
+    <div class="section-heading"><div><p class="eyebrow">NHẬP KHO</p><h2>Phiếu nhập kho</h2></div></div>
+    <article class="panel">
+      <div class="detail-grid">
+        <label class="field">Ngày nhập<input id="stockin-date" type="datetime-local"></label>
+        <label class="field span-2">Ghi chú<input id="stockin-note" placeholder="VD: Nhập nước ngọt từ nhà cung cấp"></label>
+      </div>
+      <div class="toolbar"><input id="stockin-search" placeholder="Tìm mặt hàng để nhập…"></div>
+      <div id="stockin-products" class="cards-list empty">Chưa có mặt hàng.</div>
+      <div class="inline-actions"><button class="button" id="save-stockin" type="button">Lưu phiếu nhập kho</button><button class="button secondary hidden" id="cancel-stockin-edit" type="button">Hủy sửa</button></div>
+    </article>
+    <article class="panel space-top"><div class="panel-title"><h3>Lịch sử nhập kho</h3></div><div id="stockin-history" class="list empty">Chưa có phiếu nhập kho.</div></article>
+  </section>
+
   <section class="page" id="page-weekly">
     <div class="section-heading"><div><p class="eyebrow">CUỐI TUẦN</p><h2>Kiểm kho và tự tính doanh thu</h2></div></div>
     <article class="panel">

@@ -112,11 +112,11 @@ function applyCustomerPayment(data, customerId, amount, note = "", debtId = "") 
 
 
 function emptyStore(name="Cửa hàng mới") {
-  return { products:[], customers:[], debts:[], sales:[], weeklyTemplate:[], weeklyAudits:[], stockAdjustments:[], meta:{ name, createdAt:new Date().toISOString() } };
+  return { products:[], customers:[], debts:[], sales:[], weeklyTemplate:[], weeklyAudits:[], stockAdjustments:[], stockReceipts:[], meta:{ name, createdAt:new Date().toISOString() } };
 }
 function ensureStoreShape(data, name="Cửa hàng") {
   const shaped = data && typeof data === "object" ? data : {};
-  for (const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments"]) if (!Array.isArray(shaped[key])) shaped[key]=[];
+  for (const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts"]) if (!Array.isArray(shaped[key])) shaped[key]=[];
   shaped.meta = shaped.meta && typeof shaped.meta === "object" ? shaped.meta : {name};
   if (!shaped.meta.name) shaped.meta.name=name;
   return shaped;
@@ -629,6 +629,69 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
     return sendJson(res, 200, { ok: true, deleted });
   }
 
+
+  if(req.method==="GET"&&pathname==="/api/stock-in"){
+    const data=await readStore();
+    return sendJson(res,200,{receipts:(data.stockReceipts||[]).slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt))});
+  }
+  if(req.method==="POST"&&pathname==="/api/stock-in"){
+    const body=await readJsonBody(req);
+    if(!Array.isArray(body.lines)||!body.lines.length)bad("Phiếu nhập chưa có mặt hàng.");
+    const receipt=await updateStore(data=>{
+      data.stockReceipts=data.stockReceipts||[];
+      const lines=[];
+      for(const input of body.lines){
+        const p=data.products.find(x=>x.id===input.productId); if(!p||p.trackStock===false)continue;
+        const cases=qty(input.cases),units=qty(input.units),quantity=cases*Math.max(1,Number(p.packSize)||1)+units;
+        if(quantity<=0)continue;
+        const before=Number(p.stock)||0,costPrice=money(input.costPrice||p.costPrice||0);
+        p.stock=before+quantity; if(costPrice>0)p.costPrice=costPrice;
+        lines.push({productId:p.id,name:p.name,unit:p.unit,packSize:p.packSize||1,cases,units,quantity,costPrice,stockBefore:before,stockAfter:p.stock});
+      }
+      if(!lines.length)bad("Không có số lượng nhập hợp lệ.");
+      const r={id:newId(),createdAt:body.createdAt||new Date().toISOString(),note:String(body.note||"").trim(),lines,totalCost:lines.reduce((s,l)=>s+l.quantity*l.costPrice,0)};
+      data.stockReceipts.push(r); return r;
+    });
+    return sendJson(res,201,receipt);
+  }
+  const stockinParams=routeMatch(pathname,"/api/stock-in/:id");
+  if(req.method==="PATCH"&&stockinParams){
+    const body=await readJsonBody(req);
+    const receipt=await updateStore(data=>{
+      const r=(data.stockReceipts||[]).find(x=>x.id===stockinParams.id); if(!r)return null;
+      const old=new Map(r.lines.map(l=>[l.productId,l]));
+      const fresh=[];
+      for(const input of body.lines||[]){
+        const p=data.products.find(x=>x.id===input.productId); if(!p||p.trackStock===false)continue;
+        const cases=qty(input.cases),units=qty(input.units),quantity=cases*Math.max(1,Number(p.packSize)||1)+units;
+        if(quantity<=0)continue;
+        const prev=old.get(p.id),oldQty=Number(prev?.quantity)||0;
+        p.stock=Math.max(0,(Number(p.stock)||0)+quantity-oldQty);
+        const costPrice=money(input.costPrice||p.costPrice||0); if(costPrice>0)p.costPrice=costPrice;
+        fresh.push({productId:p.id,name:p.name,unit:p.unit,packSize:p.packSize||1,cases,units,quantity,costPrice,stockBefore:Number(prev?.stockBefore ?? (p.stock-quantity))||0,stockAfter:p.stock});
+        old.delete(p.id);
+      }
+      for(const prev of old.values()){
+        const p=data.products.find(x=>x.id===prev.productId); if(p)p.stock=Math.max(0,(Number(p.stock)||0)-(Number(prev.quantity)||0));
+      }
+      if(!fresh.length)bad("Phiếu nhập chưa có mặt hàng.");
+      Object.assign(r,{createdAt:body.createdAt||r.createdAt,note:String(body.note||"").trim(),lines:fresh,totalCost:fresh.reduce((s,l)=>s+l.quantity*l.costPrice,0),updatedAt:new Date().toISOString()});
+      return r;
+    });
+    if(!receipt)return sendJson(res,404,{error:"Không tìm thấy phiếu nhập kho."});
+    return sendJson(res,200,receipt);
+  }
+  if(req.method==="DELETE"&&stockinParams){
+    const deleted=await updateStore(data=>{
+      const i=(data.stockReceipts||[]).findIndex(x=>x.id===stockinParams.id);if(i<0)return null;
+      const r=data.stockReceipts[i];
+      for(const l of r.lines){const p=data.products.find(x=>x.id===l.productId);if(p)p.stock=Math.max(0,(Number(p.stock)||0)-(Number(l.quantity)||0));}
+      data.stockReceipts.splice(i,1);return r;
+    });
+    if(!deleted)return sendJson(res,404,{error:"Không tìm thấy phiếu nhập kho."});
+    return sendJson(res,200,{ok:true,deleted});
+  }
+
   if(req.method==="POST"&&pathname==="/api/ai/chat") {
     const body = await readJsonBody(req);
     const message = String(body.message || "").trim();
@@ -673,7 +736,7 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
     const mode=body.mode==="merge"?"merge":"replace";
     const result=await updateStore(data=>{
       const src=ensureStoreShape(structuredClone(incoming));
-      if(mode==="replace"){for(const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments"])data[key]=src[key]||[];data.meta={...(data.meta||{}),...(src.meta||{})};}
+      if(mode==="replace"){for(const key of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts"])data[key]=src[key]||[];data.meta={...(data.meta||{}),...(src.meta||{})};}
       else {for(const key of ["products","customers","debts","sales","weeklyAudits","stockAdjustments"]){const existing=new Set((data[key]||[]).map(x=>x.id));for(const item of src[key]||[])if(!existing.has(item.id))data[key].push(item);}}
       return {ok:true,counts:{products:data.products.length,customers:data.customers.length,debts:data.debts.length,sales:data.sales.length,weeklyAudits:data.weeklyAudits.length}};
     }); return sendJson(res,200,result);
