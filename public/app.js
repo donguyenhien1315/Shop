@@ -17,10 +17,17 @@ const todayKey = () => dateKey(new Date().toISOString());
 const paymentLabel = value => ({ cash:"Tiền mặt", transfer:"Chuyển khoản", debt:"Ghi nợ", inventory:"Kiểm kho" })[value] || value;
 
 async function api(url, options = {}) {
-  const headers = { "Content-Type":"application/json", ...(options.headers || {}) };
-  const response = await fetch(url, { ...options, headers });
+  const headers = { "Content-Type":"application/json", "Cache-Control":"no-cache", ...(options.headers || {}) };
+  const method=(options.method||"GET").toUpperCase();
+  let requestUrl=url;
+  if(method==="GET"){
+    const sep=url.includes("?")?"&":"?";
+    requestUrl=`${url}${sep}_ts=${Date.now()}`;
+  }
+  const response = await fetch(requestUrl, { ...options, method, headers, cache:"no-store" });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Có lỗi xảy ra.");
+  if(method!=="GET" && typeof loadPersistenceStatus==="function") setTimeout(()=>loadPersistenceStatus(),0);
   return data;
 }
 
@@ -650,6 +657,19 @@ function renderAiPreview(preview,message){
 }
 
 
+
+async function loadPersistenceStatus(){
+  try{
+    const p=await api("/api/persistence-status");
+    let el=$("#cloud-save-status");
+    if(!el){
+      el=document.createElement("div");el.id="cloud-save-status";el.className="cloud-save-status";
+      const host=$("#ai-status")?.parentElement||document.body;host.appendChild(el);
+    }
+    el.textContent=p.lastSavedAt?`Cloud đã lưu: ${new Date(p.lastSavedAt).toLocaleString("vi-VN")}`:`Cloud sẵn sàng · revision ${p.revision}`;
+  }catch(e){console.warn("persistence status",e);}
+}
+
 async function initAppData(){
   const loading = document.getElementById("app-loading-state");
   try{
@@ -667,6 +687,7 @@ async function initAppData(){
       typeof loadSnapshots==="function" ? loadSnapshots() : Promise.resolve()
     ]);
     if(typeof renderSmartAlerts==="function") renderSmartAlerts();
+    await loadPersistenceStatus();
     return true;
   } finally {
     if(loading) loading.classList.add("hidden");

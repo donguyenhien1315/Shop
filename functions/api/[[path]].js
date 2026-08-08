@@ -944,6 +944,18 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
     });
   }
 
+  if(req.method==="GET"&&pathname==="/api/persistence-status"){
+    const root=await readRoot(),store=activeStore(root);
+    return sendJson(res,200,{
+      ok:true,
+      revision:Number(root.__persist?.revision)||0,
+      writtenAt:root.__persist?.writtenAt||"",
+      lastSavedAt:store.data?.meta?.lastSavedAt||"",
+      storeId:store.id,
+      storeName:store.name
+    });
+  }
+
   if(req.method==="POST"&&pathname==="/api/import/backup"){
     const body=await readJsonBody(req); const incoming=body.data; if(!incoming||typeof incoming!=="object")bad("Tệp nhập không có dữ liệu hợp lệ.");
     const mode=body.mode==="merge"?"merge":"replace";
@@ -973,14 +985,53 @@ export async function onRequest(context){
   const request=context.request; const url=new URL(request.url); const pathname=url.pathname;
   try{
     if(pathname==="/api/health"){
-      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"3.1-three-import-types"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"3.2-persistence-verified"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     }
     if(pathname==="/api/auth/login"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     if(pathname==="/api/auth/logout"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8"}});
-    const readRoot=async()=>{ let raw=await rpc("cantin_read_store_public",{}); const root=normalizeRoot(raw); const migrated=syncCanonicalDebtData(root); if(!raw||raw.__multiStore!==true||migrated)await rpc("cantin_write_store_public",{p_data:root}); return root; };
-    const updateRoot=async(mutator)=>{const root=await readRoot();const result=await mutator(root);await rpc("cantin_write_store_public",{p_data:root});return result;};
+    const rawRead=async()=>await rpc("cantin_read_store_public",{});
+    const writeVerified=async(root)=>{
+      root.__persist=root.__persist&&typeof root.__persist==="object"?root.__persist:{};
+      const revision=(Number(root.__persist.revision)||0)+1;
+      const token=`${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}`;
+      root.__persist={revision,token,writtenAt:new Date().toISOString()};
+      await rpc("cantin_write_store_public",{p_data:root});
+      // Read back from Supabase. A successful HTTP response alone is not enough.
+      for(let attempt=0;attempt<3;attempt++){
+        const check=await rawRead();
+        if(check?.__persist?.token===token && Number(check?.__persist?.revision)===revision)return check;
+        await new Promise(r=>setTimeout(r,120*(attempt+1)));
+      }
+      throw Object.assign(new Error("Supabase chưa xác nhận lưu dữ liệu. Thay đổi chưa được coi là thành công; vui lòng thử lại."),{status:503});
+    };
+    const readRoot=async()=>{
+      const raw=await rawRead();
+      const root=normalizeRoot(raw);
+      const migrated=syncCanonicalDebtData(root);
+      if(!raw||raw.__multiStore!==true||migrated) return await writeVerified(root);
+      return root;
+    };
+    const updateRoot=async(mutator)=>{
+      const root=await readRoot();
+      const result=await mutator(root);
+      await writeVerified(root);
+      return result;
+    };
     const readStore=async()=>{const root=await readRoot();return activeStore(root).data;};
-    const updateStore=async(mutator)=>{const root=await readRoot();const store=activeStore(root);root.__undoHistory=root.__undoHistory&&typeof root.__undoHistory==="object"?root.__undoHistory:{};const key=store.id;const hist=Array.isArray(root.__undoHistory[key])?root.__undoHistory[key]:[];hist.push({at:new Date().toISOString(),data:structuredClone(store.data)});root.__undoHistory[key]=hist.slice(-12);const result=await mutator(store.data);await rpc("cantin_write_store_public",{p_data:root});return result;};
+    const updateStore=async(mutator)=>{
+      const root=await readRoot();
+      const store=activeStore(root);
+      root.__undoHistory=root.__undoHistory&&typeof root.__undoHistory==="object"?root.__undoHistory:{};
+      const key=store.id;
+      const hist=Array.isArray(root.__undoHistory[key])?root.__undoHistory[key]:[];
+      hist.push({at:new Date().toISOString(),data:structuredClone(store.data)});
+      root.__undoHistory[key]=hist.slice(-12);
+      const result=await mutator(store.data);
+      store.data.meta=store.data.meta&&typeof store.data.meta==="object"?store.data.meta:{};
+      store.data.meta.lastSavedAt=new Date().toISOString();
+      await writeVerified(root);
+      return result;
+    };
     const req=makeReq(request,true), res=makeRes();
     await handleApi(req,res,url,readStore,updateStore,readRoot,updateRoot);
     return new Response(res.body,{status:res.status,headers:res.headers});
