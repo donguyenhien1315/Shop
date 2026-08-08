@@ -11,8 +11,9 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+<div id="app-loading-state" class="app-loading-state">Đang đồng bộ dữ liệu…</div>
 <header class="topbar">
-  <div><p class="eyebrow">QUẢN LÝ CĂN TIN</p><h1>Căn tin AI <small>v2.5 Cloud</small></h1></div>
+  <div><p class="eyebrow">QUẢN LÝ CĂN TIN</p><h1>Căn tin AI <small>v3.1</small></h1></div>
   <div class="topbar-tools"><label class="store-switch">Cửa hàng<select id="store-select"></select></label><button class="button small secondary" id="new-store" type="button">+ Cửa hàng</button><div class="status" id="ai-status">Đang kiểm tra AI…</div></div>
 </header>
 <nav class="tabs" aria-label="Điều hướng chính">
@@ -154,6 +155,43 @@
   </section>
 
   <section class="page" id="page-data">
+
+    <article class="panel space-top" id="three-import-export">
+      <div class="panel-title">
+        <div>
+          <h3>Import / Export nâng cao</h3>
+          <p class="hint compact">Tách riêng dữ liệu cửa hàng, cấu hình ứng dụng và gói cập nhật mã nguồn.</p>
+        </div>
+      </div>
+      <div class="three-io-grid">
+        <section class="io-card">
+          <h4>1. Dữ liệu cửa hàng</h4>
+          <p>Sản phẩm, đơn hàng, công nợ, tồn kho, nhập kho, kiểm kho.</p>
+          <div class="inline-actions">
+            <button class="button small" id="export-store-data" type="button">Xuất dữ liệu</button>
+            <label class="button small secondary file-label">Nhập dữ liệu<input id="import-store-data" type="file" accept=".json,.node.json,application/json" hidden></label>
+          </div>
+        </section>
+        <section class="io-card">
+          <h4>2. Cấu hình ứng dụng</h4>
+          <p>Menu, giao diện, cảnh báo, quy tắc tiền, alias AI và tùy chọn hiển thị.</p>
+          <div class="inline-actions">
+            <button class="button small" id="export-app-config" type="button">Xuất cấu hình</button>
+            <label class="button small secondary file-label">Nhập cấu hình<input id="import-app-config" type="file" accept=".json,.node.json,application/json" hidden></label>
+          </div>
+        </section>
+        <section class="io-card">
+          <h4>3. Gói cập nhật ứng dụng</h4>
+          <p>Node JSON chứa mã nguồn ứng dụng. App sẽ kiểm tra phiên bản và cấu trúc trước khi chấp nhận.</p>
+          <div class="inline-actions">
+            <button class="button small secondary" id="export-app-package-info" type="button">Xuất mẫu gói</button>
+            <label class="button small secondary file-label">Kiểm tra gói cập nhật<input id="import-app-package" type="file" accept=".node.json,.json,application/json" hidden></label>
+          </div>
+          <div id="app-package-status" class="hint compact"></div>
+        </section>
+      </div>
+    </article>
+
     <div class="section-heading"><div><p class="eyebrow">SAO LƯU & CHUYỂN DỮ LIỆU</p><h2>Import / Export dữ liệu</h2></div></div>
     <div class="two-column">
       <article class="panel"><div class="panel-title"><h3>Xuất dữ liệu</h3></div><p class="hint">Tải dữ liệu cửa hàng hiện tại để lưu, chỉnh sửa hoặc chuyển máy.</p><div class="export-grid"><button class="button" id="export-json" type="button">Node JSON</button><button class="button" id="export-excel" type="button">Excel .xlsx</button><button class="button" id="export-zip" type="button">ZIP</button></div></article>

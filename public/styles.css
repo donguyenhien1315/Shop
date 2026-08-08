@@ -71,3 +71,17 @@
 
 .ai-preview{border:1px solid var(--border,#e5e7eb);background:color-mix(in srgb,var(--surface,#fff) 92%,#2563eb 8%)}
 #transactions-list .badge{font-size:.75rem;opacity:.7}
+
+.app-loading-state{
+  position:fixed;left:50%;top:18px;transform:translateX(-50%);
+  z-index:99999;padding:10px 16px;border-radius:999px;
+  background:var(--surface,#fff);border:1px solid var(--border,#dfe8e6);
+  box-shadow:0 8px 24px rgba(0,0,0,.10);font-weight:700;
+}
+.app-loading-state.hidden{display:none}
+
+.three-io-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.io-card{border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:14px;background:var(--surface,#fff)}
+.io-card h4{margin:0 0 8px}.io-card p{margin:0 0 12px;opacity:.72;line-height:1.45}
+.file-label{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+@media(max-width:800px){.three-io-grid{grid-template-columns:1fr}}

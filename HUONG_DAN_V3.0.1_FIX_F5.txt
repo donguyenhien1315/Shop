@@ -1,0 +1,16 @@
+CANTIN AI v3.0.1 - FIX F5 / initAppData
+
+Đã sửa:
+- Không còn lỗi "Can't find variable: initAppData".
+- Khi F5, app hiện "Đang đồng bộ dữ liệu…" trong lúc chờ Supabase.
+- Chỉ render dữ liệu sau khi các API chính tải xong.
+- Không dùng delay 5 giây cố định.
+- Không thay đổi dữ liệu Supabase.
+- Giữ toàn bộ tính năng v3.0 FULL.
+
+Cập nhật:
+1. Giải nén ZIP.
+2. Upload toàn bộ nội dung lên GitHub Shop, ghi đè file cũ.
+3. Chờ Cloudflare deploy.
+4. Trên iPhone đóng tab cũ rồi mở lại hoặc refresh.
+5. Không cần chạy SQL.

@@ -830,6 +830,120 @@ async function handleApi(req, res, url, readStore, updateStore, readRoot, update
     const body=await readJsonBody(req);
     const r=await updateStore(data=>{const s=(data.snapshots||[]).find(x=>x.id===body.id);if(!s)bad("Không tìm thấy bản sao lưu.");const keep=structuredClone(data.snapshots||[]);for(const k of Object.keys(data))delete data[k];Object.assign(data,structuredClone(s.data));data.snapshots=keep;return {ok:true};});return sendJson(res,200,r);
   }
+
+  if(req.method==="GET"&&pathname==="/api/export/store-data"){
+    const data=await readStore();
+    const payload={
+      format:"cantin-ai-store-data",
+      version:"1.0",
+      exportedAt:new Date().toISOString(),
+      meta:data.meta||{},
+      products:data.products||[],
+      customers:data.customers||[],
+      debts:data.debts||[],
+      sales:data.sales||[],
+      weeklyTemplate:data.weeklyTemplate||[],
+      weeklyAudits:data.weeklyAudits||[],
+      stockAdjustments:data.stockAdjustments||[],
+      stockReceipts:data.stockReceipts||[],
+      transactions:data.transactions||[],
+      aliases:data.aliases||[]
+    };
+    return sendJson(res,200,payload);
+  }
+
+  if(req.method==="POST"&&pathname==="/api/import/store-data"){
+    const body=await readJsonBody(req);
+    if(body.format!=="cantin-ai-store-data")bad("Sai định dạng dữ liệu cửa hàng.");
+    const result=await updateStore(data=>{
+      snapshotStore(data,"Trước khi nhập dữ liệu cửa hàng");
+      for(const k of ["products","customers","debts","sales","weeklyTemplate","weeklyAudits","stockAdjustments","stockReceipts","transactions","aliases"]){
+        if(Array.isArray(body[k]))data[k]=structuredClone(body[k]);
+      }
+      if(body.meta&&typeof body.meta==="object")data.meta={...(data.meta||{}),...body.meta,importedAt:new Date().toISOString()};
+      return {ok:true};
+    });
+    return sendJson(res,200,result);
+  }
+
+  if(req.method==="GET"&&pathname==="/api/export/app-config"){
+    const data=await readStore();
+    const payload={
+      format:"cantin-ai-app-config",
+      version:"1.0",
+      exportedAt:new Date().toISOString(),
+      ui:data.meta?.uiConfig||{
+        compactDebtList:true,
+        customerSort:"az",
+        smartAlerts:true,
+        showUndo:true
+      },
+      moneyRules:data.meta?.moneyRules||{
+        under1000MeansThousands:true,
+        allowK:true,
+        allowQuickMath:true
+      },
+      ai:data.meta?.aiConfig||{
+        previewBeforeWrite:true,
+        preventZeroDeltaAudit:true,
+        requireConfirmationForDeletes:true
+      },
+      aliases:data.aliases||[],
+      thresholds:data.meta?.thresholds||{
+        lowStockUsesProductMin:true,
+        suspiciousDebtBelow:1000
+      }
+    };
+    return sendJson(res,200,payload);
+  }
+
+  if(req.method==="POST"&&pathname==="/api/import/app-config"){
+    const body=await readJsonBody(req);
+    if(body.format!=="cantin-ai-app-config")bad("Sai định dạng cấu hình ứng dụng.");
+    const result=await updateStore(data=>{
+      snapshotStore(data,"Trước khi nhập cấu hình ứng dụng");
+      data.meta=data.meta||{};
+      if(body.ui&&typeof body.ui==="object")data.meta.uiConfig=structuredClone(body.ui);
+      if(body.moneyRules&&typeof body.moneyRules==="object")data.meta.moneyRules=structuredClone(body.moneyRules);
+      if(body.ai&&typeof body.ai==="object")data.meta.aiConfig=structuredClone(body.ai);
+      if(body.thresholds&&typeof body.thresholds==="object")data.meta.thresholds=structuredClone(body.thresholds);
+      if(Array.isArray(body.aliases))data.aliases=structuredClone(body.aliases);
+      data.meta.configImportedAt=new Date().toISOString();
+      return {ok:true};
+    });
+    return sendJson(res,200,result);
+  }
+
+  if(req.method==="POST"&&pathname==="/api/validate-app-package"){
+    const body=await readJsonBody(req);
+    if(body.format!=="cantin-ai-node-json")bad("Đây không phải gói cập nhật Cantin AI.");
+    if(!Array.isArray(body.files)||!body.files.length)bad("Gói cập nhật không có file.");
+    const required=["public/index.html","public/app.js","public/styles.css"];
+    const paths=body.files.map(f=>String(f.path||"").replace(/^.*?Cantin_AI[^/]*\//,""));
+    const missing=required.filter(r=>!paths.some(p=>p.endsWith(r)));
+    if(missing.length)bad("Gói cập nhật thiếu: "+missing.join(", "));
+    return sendJson(res,200,{
+      ok:true,
+      format:body.format,
+      version:body.version||"không rõ",
+      fileCount:body.files.length,
+      note:"Gói hợp lệ để kiểm tra. Vì Cloudflare Pages phục vụ mã nguồn từ GitHub, app web không thể tự ghi đè mã nguồn đang chạy. Hãy upload gói này lên GitHub/Cloudflare để áp dụng."
+    });
+  }
+
+  if(req.method==="GET"&&pathname==="/api/export/app-package-template"){
+    return sendJson(res,200,{
+      format:"cantin-ai-node-json",
+      version:"3.1",
+      description:"Mẫu gói cập nhật ứng dụng Cantin AI",
+      files:[
+        {path:"public/index.html",encoding:"utf-8",content:""},
+        {path:"public/app.js",encoding:"utf-8",content:""},
+        {path:"public/styles.css",encoding:"utf-8",content:""}
+      ]
+    });
+  }
+
   if(req.method==="POST"&&pathname==="/api/import/backup"){
     const body=await readJsonBody(req); const incoming=body.data; if(!incoming||typeof incoming!=="object")bad("Tệp nhập không có dữ liệu hợp lệ.");
     const mode=body.mode==="merge"?"merge":"replace";
@@ -859,7 +973,7 @@ export async function onRequest(context){
   const request=context.request; const url=new URL(request.url); const pathname=url.pathname;
   try{
     if(pathname==="/api/health"){
-      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"3.0-full"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+      return new Response(JSON.stringify({ok:true,aiConfigured:true,aiMode:"local",storageMode:"supabase",authRequired:false,authenticated:true,version:"3.1-three-import-types"}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     }
     if(pathname==="/api/auth/login"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
     if(pathname==="/api/auth/logout"&&request.method==="POST") return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json; charset=utf-8"}});

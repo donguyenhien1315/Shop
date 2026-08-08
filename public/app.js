@@ -649,6 +649,37 @@ function renderAiPreview(preview,message){
   $("#chat-messages").appendChild(box);$("#chat-messages").scrollTop=$("#chat-messages").scrollHeight;
 }
 
+
+async function initAppData(){
+  const loading = document.getElementById("app-loading-state");
+  try{
+    if(loading){ loading.classList.remove("hidden"); loading.textContent="Đang đồng bộ dữ liệu…"; }
+    await Promise.all([
+      loadProducts(),
+      loadCustomers(),
+      loadDashboard(),
+      loadSales(),
+      loadStockin()
+    ]);
+    await Promise.all([
+      typeof loadAliases==="function" ? loadAliases() : Promise.resolve(),
+      typeof loadTransactions==="function" ? loadTransactions() : Promise.resolve(),
+      typeof loadSnapshots==="function" ? loadSnapshots() : Promise.resolve()
+    ]);
+    if(typeof renderSmartAlerts==="function") renderSmartAlerts();
+    return true;
+  } finally {
+    if(loading) loading.classList.add("hidden");
+  }
+}
+
+
+window.addEventListener("unhandledrejection",e=>{
+  console.error("Cantin AI async error:",e.reason);
+});
+window.addEventListener("error",e=>{
+  console.error("Cantin AI runtime error:",e.error||e.message);
+});
 async function init() {
   try {
     await loadHealth();

@@ -1,0 +1,16 @@
+CANTIN AI v3.1 - 3 LOẠI IMPORT / EXPORT
+
+1) DỮ LIỆU CỬA HÀNG
+- Xuất/nhập sản phẩm, bán hàng, công nợ, tồn kho, nhập kho, kiểm kho.
+- Tự tạo snapshot trước khi nhập.
+
+2) CẤU HÌNH ỨNG DỤNG
+- Xuất/nhập giao diện, menu, cảnh báo, quy tắc tiền, AI config, alias.
+- Không thay dữ liệu bán hàng/công nợ.
+
+3) GÓI CẬP NHẬT ỨNG DỤNG
+- Nhận file cantin-ai-node-json và kiểm tra cấu trúc/phiên bản.
+- Lưu ý: Cloudflare Pages lấy mã nguồn từ GitHub nên web đang chạy không thể tự ghi đè file nguồn của chính nó.
+- Gói hợp lệ vẫn cần upload lên GitHub/Cloudflare để thực sự cập nhật mã nguồn.
+
+Không cần chạy SQL mới.
