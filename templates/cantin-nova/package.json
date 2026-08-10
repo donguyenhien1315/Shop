@@ -1,0 +1,20 @@
+{
+  "name": "cantin-nova",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy && wrangler d1 migrations apply DB --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "Cơ sở dữ liệu D1 mới. Cloudflare sẽ tự tạo khi triển khai."
+      }
+    }
+  }
+}
