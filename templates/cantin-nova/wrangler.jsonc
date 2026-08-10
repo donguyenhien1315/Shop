@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cantin-nova",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-10",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cantin-nova-db"
+    }
+  ],
+  "vars": {
+    "LEGACY_SUPABASE_URL": "https://kqfqdxmhrsndrgyipybe.supabase.co",
+    "LEGACY_SUPABASE_ANON_KEY": "sb_publishable_vLPh3dz8y3jHDcXtg1JmgQ_nJF2WdUF"
+  }
+}
